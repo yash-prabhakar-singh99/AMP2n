@@ -1,0 +1,52 @@
+package com.namekart.amp2.TelegramEntities;
+
+public class Message {
+    Long message_id;
+    User from;
+    Chat chat;
+    Long date;
+    String text;
+
+    public Message() {
+    }
+
+    public Long getMessage_id() {
+        return message_id;
+    }
+
+    public void setMessage_id(Long message_id) {
+        this.message_id = message_id;
+    }
+
+    public User getFrom() {
+        return from;
+    }
+
+    public void setFrom(User from) {
+        this.from = from;
+    }
+
+    public Chat getChat() {
+        return chat;
+    }
+
+    public void setChat(Chat chat) {
+        this.chat = chat;
+    }
+
+    public Long getDate() {
+        return date;
+    }
+
+    public void setDate(Long date) {
+        this.date = date;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
+    }
+}

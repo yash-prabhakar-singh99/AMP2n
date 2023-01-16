@@ -1,0 +1,23 @@
+package com.namekart.amp2;
+
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+
+@Configuration
+@ComponentScan()
+public class ThreadpoolTaskconfig {
+    @Bean
+    public ThreadPoolTaskScheduler threadPoolTaskScheduler(){
+        ThreadPoolTaskScheduler threadPoolTaskScheduler
+                = new ThreadPoolTaskScheduler();
+        threadPoolTaskScheduler.setPoolSize(15);
+        threadPoolTaskScheduler.setThreadNamePrefix(
+                "ThreadPoolTaskScheduler");
+        threadPoolTaskScheduler.setBeanName("threadPoolTaskScheduler");
+        threadPoolTaskScheduler.setRemoveOnCancelPolicy(true);
+        return threadPoolTaskScheduler;
+    }
+}

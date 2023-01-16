@@ -1,0 +1,876 @@
+<wsdl:definitions xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/"
+                  xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:tns="GdAuctionsBiddingWSAPI_v2"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:s="http://www.w3.org/2001/XMLSchema"
+                  xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/"
+                  xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  targetNamespace="GdAuctionsBiddingWSAPI_v2">
+    <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">GoDaddy Auctions - Bidding WS (Version 2.0)</wsdl:documentation>
+    <wsdl:types>
+        <s:schema elementFormDefault="qualified" targetNamespace="GdAuctionsBiddingWSAPI_v2">
+            <s:element name="GetServiceStatus">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetServiceStatusResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetServiceStatusResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="InstantPurchaseCloseoutDomain">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="closeoutDomainPriceKey" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptUTOS" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptAMA" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptDNRA" type="s:boolean"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="InstantPurchaseCloseoutDomainResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="InstantPurchaseCloseoutDomainResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="EstimateCloseoutDomainPrice">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="addPrivacy" type="s:boolean"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="EstimateCloseoutDomainPriceResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="EstimateCloseoutDomainPriceResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBidOrPurchase">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="sBidAmount" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="useMyPurchaseProfile" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptUTOS" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptAMA" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptDNRA" type="s:boolean"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="bidComment" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBidOrPurchaseResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="PlaceBidOrPurchaseResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBackorder">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="backOrderXml" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBackorderResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="PlaceBackorderResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBid">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="bidAmount" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="bidComments" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBidResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="PlaceBidResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBidWithPurchaseProfile">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="bidAmount" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="bidComments" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="useMyPurchaseProfile" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptUTOS" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptAMA" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptDNRA" type="s:boolean"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="PlaceBidWithPurchaseProfileResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="PlaceBidWithPurchaseProfileResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionDetails">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionDetailsResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionDetailsResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetTermsOfServiceUrls">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetTermsOfServiceUrlsResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetTermsOfServiceUrlsResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionDetailsByDomainName">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="domainName" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionDetailsByDomainNameResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionDetailsByDomainNameResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultBidsCloseDays">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="beginsWithKeyword" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="includeAdultNames" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="hasBids" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="closeDaysOut" type="s:int"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultBidsCloseDaysResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionTypeAdultBidsCloseDaysResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultFilter">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="beginsWithKeyword" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="includeAdultNames" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultFilterResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionTypeAdultFilterResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionType">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="beginsWithKeyword" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionTypeResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionList">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="beginsWithKeyword" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultBidsCloseDays2">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="keyWord" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="searchType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="includeAdultNames" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="hasBids" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="closeDaysOut" type="s:int"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultBidsCloseDays2Response">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionTypeAdultBidsCloseDays2Result" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultFilter2">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="keyWord" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="includeAdultNames" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="searchType" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAdultFilter2Response">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionTypeAdultFilter2Result" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionType2">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="keyWord" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="searchType" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionType2Response">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionType2Result" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAndDates">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionType" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="minStartTime" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="maxStartTime" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionListByAuctionTypeAndDatesResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionListByAuctionTypeAndDatesResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionList2">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="pageNumber" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="rowsPerPage" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="keyWord" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="searchType" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetAuctionList2Response">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetAuctionList2Result" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+        </s:schema>
+    </wsdl:types>
+    <wsdl:message name="GetServiceStatusSoapIn">
+        <wsdl:part name="parameters" element="tns:GetServiceStatus"/>
+    </wsdl:message>
+    <wsdl:message name="GetServiceStatusSoapOut">
+        <wsdl:part name="parameters" element="tns:GetServiceStatusResponse"/>
+    </wsdl:message>
+    <wsdl:message name="InstantPurchaseCloseoutDomainSoapIn">
+        <wsdl:part name="parameters" element="tns:InstantPurchaseCloseoutDomain"/>
+    </wsdl:message>
+    <wsdl:message name="InstantPurchaseCloseoutDomainSoapOut">
+        <wsdl:part name="parameters" element="tns:InstantPurchaseCloseoutDomainResponse"/>
+    </wsdl:message>
+    <wsdl:message name="EstimateCloseoutDomainPriceSoapIn">
+        <wsdl:part name="parameters" element="tns:EstimateCloseoutDomainPrice"/>
+    </wsdl:message>
+    <wsdl:message name="EstimateCloseoutDomainPriceSoapOut">
+        <wsdl:part name="parameters" element="tns:EstimateCloseoutDomainPriceResponse"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBidOrPurchaseSoapIn">
+        <wsdl:part name="parameters" element="tns:PlaceBidOrPurchase"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBidOrPurchaseSoapOut">
+        <wsdl:part name="parameters" element="tns:PlaceBidOrPurchaseResponse"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBackorderSoapIn">
+        <wsdl:part name="parameters" element="tns:PlaceBackorder"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBackorderSoapOut">
+        <wsdl:part name="parameters" element="tns:PlaceBackorderResponse"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBidSoapIn">
+        <wsdl:part name="parameters" element="tns:PlaceBid"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBidSoapOut">
+        <wsdl:part name="parameters" element="tns:PlaceBidResponse"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBidWithPurchaseProfileSoapIn">
+        <wsdl:part name="parameters" element="tns:PlaceBidWithPurchaseProfile"/>
+    </wsdl:message>
+    <wsdl:message name="PlaceBidWithPurchaseProfileSoapOut">
+        <wsdl:part name="parameters" element="tns:PlaceBidWithPurchaseProfileResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionDetailsSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionDetails"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionDetailsSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionDetailsResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetTermsOfServiceUrlsSoapIn">
+        <wsdl:part name="parameters" element="tns:GetTermsOfServiceUrls"/>
+    </wsdl:message>
+    <wsdl:message name="GetTermsOfServiceUrlsSoapOut">
+        <wsdl:part name="parameters" element="tns:GetTermsOfServiceUrlsResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionDetailsByDomainNameSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionDetailsByDomainName"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionDetailsByDomainNameSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionDetailsByDomainNameResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultBidsCloseDaysSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultBidsCloseDays"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultBidsCloseDaysSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultBidsCloseDaysResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultFilterSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultFilter"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultFilterSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultFilterResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionType"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionList"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultBidsCloseDays2SoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultBidsCloseDays2"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultBidsCloseDays2SoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultBidsCloseDays2Response"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultFilter2SoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultFilter2"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAdultFilter2SoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAdultFilter2Response"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionType2SoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionType2"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionType2SoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionType2Response"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAndDatesSoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAndDates"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionListByAuctionTypeAndDatesSoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionListByAuctionTypeAndDatesResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionList2SoapIn">
+        <wsdl:part name="parameters" element="tns:GetAuctionList2"/>
+    </wsdl:message>
+    <wsdl:message name="GetAuctionList2SoapOut">
+        <wsdl:part name="parameters" element="tns:GetAuctionList2Response"/>
+    </wsdl:message>
+    <wsdl:portType name="GdAuctionsBiddingWS_v2Soap">
+        <wsdl:operation name="GetServiceStatus">
+            <wsdl:input message="tns:GetServiceStatusSoapIn"/>
+            <wsdl:output message="tns:GetServiceStatusSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="InstantPurchaseCloseoutDomain">
+            <wsdl:input message="tns:InstantPurchaseCloseoutDomainSoapIn"/>
+            <wsdl:output message="tns:InstantPurchaseCloseoutDomainSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="EstimateCloseoutDomainPrice">
+            <wsdl:input message="tns:EstimateCloseoutDomainPriceSoapIn"/>
+            <wsdl:output message="tns:EstimateCloseoutDomainPriceSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBidOrPurchase">
+            <wsdl:input message="tns:PlaceBidOrPurchaseSoapIn"/>
+            <wsdl:output message="tns:PlaceBidOrPurchaseSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBackorder">
+            <wsdl:input message="tns:PlaceBackorderSoapIn"/>
+            <wsdl:output message="tns:PlaceBackorderSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBid">
+            <wsdl:input message="tns:PlaceBidSoapIn"/>
+            <wsdl:output message="tns:PlaceBidSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBidWithPurchaseProfile">
+            <wsdl:input message="tns:PlaceBidWithPurchaseProfileSoapIn"/>
+            <wsdl:output message="tns:PlaceBidWithPurchaseProfileSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionDetails">
+            <wsdl:input message="tns:GetAuctionDetailsSoapIn"/>
+            <wsdl:output message="tns:GetAuctionDetailsSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetTermsOfServiceUrls">
+            <wsdl:input message="tns:GetTermsOfServiceUrlsSoapIn"/>
+            <wsdl:output message="tns:GetTermsOfServiceUrlsSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionDetailsByDomainName">
+            <wsdl:input message="tns:GetAuctionDetailsByDomainNameSoapIn"/>
+            <wsdl:output message="tns:GetAuctionDetailsByDomainNameSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultBidsCloseDays">
+            <wsdl:input message="tns:GetAuctionListByAuctionTypeAdultBidsCloseDaysSoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionTypeAdultBidsCloseDaysSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultFilter">
+            <wsdl:input message="tns:GetAuctionListByAuctionTypeAdultFilterSoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionTypeAdultFilterSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionType">
+            <wsdl:input message="tns:GetAuctionListByAuctionTypeSoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionTypeSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionList">
+            <wsdl:input message="tns:GetAuctionListSoapIn"/>
+            <wsdl:output message="tns:GetAuctionListSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultBidsCloseDays2">
+            <wsdl:input message="tns:GetAuctionListByAuctionTypeAdultBidsCloseDays2SoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionTypeAdultBidsCloseDays2SoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultFilter2">
+            <wsdl:input message="tns:GetAuctionListByAuctionTypeAdultFilter2SoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionTypeAdultFilter2SoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionType2">
+            <wsdl:input message="tns:GetAuctionListByAuctionType2SoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionType2SoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAndDates">
+            <wsdl:input message="tns:GetAuctionListByAuctionTypeAndDatesSoapIn"/>
+            <wsdl:output message="tns:GetAuctionListByAuctionTypeAndDatesSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionList2">
+            <wsdl:input message="tns:GetAuctionList2SoapIn"/>
+            <wsdl:output message="tns:GetAuctionList2SoapOut"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="GdAuctionsBiddingWS_v2Soap" type="tns:GdAuctionsBiddingWS_v2Soap">
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="GetServiceStatus">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetServiceStatus" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="InstantPurchaseCloseoutDomain">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/InstantPurchaseCloseoutDomain" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="EstimateCloseoutDomainPrice">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/EstimateCloseoutDomainPrice" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBidOrPurchase">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBidOrPurchase" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBackorder">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBackorder" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBid">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBid" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBidWithPurchaseProfile">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBidWithPurchaseProfile" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionDetails">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionDetails" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetTermsOfServiceUrls">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetTermsOfServiceUrls" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionDetailsByDomainName">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionDetailsByDomainName" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultBidsCloseDays">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultBidsCloseDays" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultFilter">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultFilter" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionType">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionType" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionList">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionList" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultBidsCloseDays2">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultBidsCloseDays2" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultFilter2">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultFilter2" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionType2">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionType2" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAndDates">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAndDates" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionList2">
+            <soap:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionList2" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:binding name="GdAuctionsBiddingWS_v2Soap12" type="tns:GdAuctionsBiddingWS_v2Soap">
+        <soap12:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="GetServiceStatus">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetServiceStatus" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="InstantPurchaseCloseoutDomain">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/InstantPurchaseCloseoutDomain" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="EstimateCloseoutDomainPrice">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/EstimateCloseoutDomainPrice" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBidOrPurchase">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBidOrPurchase" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBackorder">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBackorder" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBid">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBid" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="PlaceBidWithPurchaseProfile">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/PlaceBidWithPurchaseProfile" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionDetails">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionDetails" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetTermsOfServiceUrls">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetTermsOfServiceUrls" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionDetailsByDomainName">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionDetailsByDomainName" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultBidsCloseDays">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultBidsCloseDays" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultFilter">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultFilter" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionType">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionType" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionList">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionList" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultBidsCloseDays2">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultBidsCloseDays2" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAdultFilter2">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAdultFilter2" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionType2">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionType2" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionListByAuctionTypeAndDates">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionListByAuctionTypeAndDates" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetAuctionList2">
+            <soap12:operation soapAction="GdAuctionsBiddingWSAPI_v2/GetAuctionList2" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="GdAuctionsBiddingWS_v2">
+        <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">GoDaddy Auctions - Bidding WS (Version 2.0)</wsdl:documentation>
+        <wsdl:port name="GdAuctionsBiddingWS_v2Soap" binding="tns:GdAuctionsBiddingWS_v2Soap">
+            <soap:address location="https://auctions.godaddy.com/gdAuctionsWSAPI/gdAuctionsBiddingWS_v2.asmx"/>
+        </wsdl:port>
+        <wsdl:port name="GdAuctionsBiddingWS_v2Soap12" binding="tns:GdAuctionsBiddingWS_v2Soap12">
+            <soap12:address location="https://auctions.godaddy.com/gdAuctionsWSAPI/gdAuctionsBiddingWS_v2.asmx"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
