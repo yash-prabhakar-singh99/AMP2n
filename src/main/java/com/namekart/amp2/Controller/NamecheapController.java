@@ -58,6 +58,10 @@ public class NamecheapController {
     {
         SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+        TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+        parser.setTimeZone(utcTimeZone);
+        ft1.setTimeZone(istTimeZone);
         List<DBdetails> list = new ArrayList<>();
         int n= ddlist.size();
         for(int i=0;i<n;i++) {
@@ -71,8 +75,6 @@ public class NamecheapController {
             String time_left;
             try {
                 d = parser.parse(endTime);
-                d.setHours(d.getHours()+5);
-                d.setMinutes(d.getMinutes()+30);
                 time_left= relTime(d);
             } catch (ParseException p) {
                 logger.info(p.getMessage());
@@ -90,11 +92,6 @@ public class NamecheapController {
             {
                 db= op.get();
                 db.setCurrbid(String.valueOf(currbid));
-                //db.setBidders(nc.get);
-                //db.setTime_left(ad.);
-                //db.setAge(aj.getAge());
-                //db.setEstibot(aj.getEstibot_appraisal());
-                //db.setAuctiontype();
                 db.setEndTimepst(endTime);
                 db.setEndTimeist(endTimeist);
                 db.setTime_left(time_left);
@@ -110,8 +107,6 @@ public class NamecheapController {
                 db.setTime_left(time_left);
                 db.setEstibot(String.valueOf(nc.getEstibotValue()));
                 db.setFetched(true);
-
-                // db.setAuctiontype(ad.getType());
                 repo.save(db);
             }
 
@@ -126,44 +121,167 @@ public class NamecheapController {
     {
         return namecheapfeign.getAuctionDetailslive1(bearer,"1_","1669908629_1669912229","end_time",100);
     }
-    @PostMapping("/bulkschedulenc")
+
+    @GetMapping("/timezone")
+    void timezone(@RequestParam String time)
+    {
+        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+        TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+        parser.setTimeZone(utcTimeZone);
+        SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+        ft1.setTimeZone(istTimeZone);
+        time=time.substring(0,time.length()-5);
+
+        try {
+            Date d = parser.parse(time);
+            System.out.println(d);
+            logger.info(ft1.format(d));
+        }
+        catch(ParseException p)
+        {
+            logger.info(p.getMessage());
+        }
+    }
+
+    void schedulesingle(String domain, String ncid, String bid)
+    {
+
+        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+        TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+        parser.setTimeZone(utcTimeZone);
+        ft1.setTimeZone(istTimeZone);
+
+
+           Float maxprice= Float.valueOf(bid);
+            try {
+                ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
+                AuctionDetailNC nc = rn.getItems().get(0);
+
+                String endTime = nc.getEndDate();
+                endTime = endTime.substring(0,endTime.length() - 5);
+                Date d = new Date();
+                String endTimeist="", bidplacetime="";
+                String time_left="";
+                try {
+                    d = parser.parse(endTime);
+                    endTimeist = ft1.format(d);
+                    time_left = relTime(d);
+                  //  d.setMinutes(d.getMinutes() - 4);
+                   // bidplacetime = ft1.format(d);
+                } catch (ParseException p) {
+                    logger.info(p.getMessage());
+                    return;
+                }
+                Date now= new Date();
+                if(d.getTime()-now.getTime()<300000)
+                {
+                    d.setSeconds(d.getSeconds()-10);
+                taskScheduler.schedule(new PlaceBid(ncid, maxprice,domain,endTime),d);
+                }
+                else
+                {
+                    d.setMinutes(d.getMinutes()-4);
+                    taskScheduler.schedule(new PreCheck(ncid,domain,maxprice),d);
+                }
+
+                logger.info(endTimeist);
+                Float currbid = nc.getPrice();
+
+
+                Optional<DBdetails> op = Optional.ofNullable(repo.findByNamecheapid(ncid));
+                DBdetails db = null;
+
+                if (op.isPresent()) {
+                    db = op.get();
+                    db.setCurrbid(String.valueOf(currbid));
+                    //db.setBidders(nc.get);
+                    //db.setTime_left(ad.);
+                    //db.setAge(aj.getAge());
+                    //db.setEstibot(aj.getEstibot_appraisal());
+                    //db.setAuctiontype();
+                    db.setBidAmount(bid);
+                    db.setResult("Bid Scheduled");
+                    db.setEndTimepst(endTime);
+                    db.setEndTimeist(endTimeist);
+                    db.setTime_left(time_left);
+                    db.setBidplacetime(bidplacetime);
+                    db.setEstibot(String.valueOf(nc.getEstibotValue()));
+
+                    repo.save(db);
+                } else {
+                    db = new DBdetails(domain, null, "Namecheap", String.valueOf(currbid), null, nc.getAuctionType(), "Bid Scheduled", endTime, endTimeist, bidplacetime, false, ncid);
+                    db.setTime_left(time_left);
+                    db.setBidAmount(bid);
+                    db.setEstibot(String.valueOf(nc.getEstibotValue()));
+
+                    repo.save(db);
+                }
+                notifRepo.save(new Notification("Namecheap: BID SCHEDULED for domain: "+db.getDomain()+ " for price: "+db.getBidAmount()+" at "+db.getBidplacetime()));
+                logger.info("Namecheap: BID SCHEDULED for domain: "+db.getDomain()+ " for price: "+db.getBidAmount()+" at "+db.getBidplacetime());
+
+
+            }
+            catch(Exception e)
+            {
+                notifRepo.save(new Notification("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice));
+                logger.info("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice);
+
+                logger.info(e.getMessage());
+            }
+
+
+
+    }
+
     List<Integer> bulkschedule(@RequestBody List<ArrayList<String>> ddlist)
     {
 
         SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+        TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+        parser.setTimeZone(utcTimeZone);
+        ft1.setTimeZone(istTimeZone);
         List<Integer> l= new ArrayList<>();
         int a=0;
         int n= ddlist.size();
         for(int i=0;i< ddlist.size();i++)
         {
             String domain = ddlist.get(i).get(0).toLowerCase();
-            Bidnc bid = new Bidnc(Float.valueOf(ddlist.get(i).get(1)));
+            Float maxprice= Float.valueOf(ddlist.get(i).get(1));
             try {
-
-
                 ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
-
                 AuctionDetailNC nc = rn.getItems().get(0);
                 String ncid = nc.getId();
                 String endTime = nc.getEndDate();
                 endTime = endTime.substring(0, endTime.length() - 5);
                 Date d = new Date();
-                String endTimeist = "", bidplacetime = "";
+                String endTimeist="", bidplacetime="";
                 String time_left;
                 try {
                     d = parser.parse(endTime);
-                    d.setHours(d.getHours() + 5);
-                    d.setMinutes(d.getMinutes() + 30);
                     endTimeist = ft1.format(d);
                     time_left = relTime(d);
-                    d.setMinutes(d.getMinutes() - 4);
-                    bidplacetime = ft1.format(d);
+                    //  d.setMinutes(d.getMinutes() - 4);
+                    // bidplacetime = ft1.format(d);
                 } catch (ParseException p) {
                     logger.info(p.getMessage());
                     continue;
                 }
-                taskScheduler.schedule(new PlaceBid(ncid, bid,domain), d);
+                Date now= new Date();
+                if(d.getTime()-now.getTime()<300000)
+                {
+                    d.setSeconds(d.getSeconds()-10);
+                    taskScheduler.schedule(new PlaceBid(ncid, maxprice,domain,endTime),d);
+                }
+                else
+                {
+                    d.setMinutes(d.getMinutes()-4);
+                    taskScheduler.schedule(new PreCheck(ncid,domain,maxprice),d);
+                }
 
                 logger.info(endTimeist);
                 Float currbid = nc.getPrice();
@@ -204,8 +322,8 @@ public class NamecheapController {
             }
             catch(Exception e)
             {
-                notifRepo.save(new Notification("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+bid.getMaxAmount()));
-                logger.info("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+bid.getMaxAmount());
+                notifRepo.save(new Notification("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice));
+                logger.info("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice);
 
                 logger.info(e.getMessage());
             }
@@ -219,9 +337,12 @@ public class NamecheapController {
     @PostMapping("/bulkbidnc")
     List<Integer> bulkbid(@RequestBody List<ArrayList<String>> ddlist)
     {
-
         SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+        TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+        parser.setTimeZone(utcTimeZone);
+        ft1.setTimeZone(istTimeZone);
         List<Integer> l= new ArrayList<>();
         int a=0;
         int n= ddlist.size();
@@ -244,8 +365,6 @@ public class NamecheapController {
                 String time_left;
                 try {
                     d = parser.parse(endTime);
-                    d.setHours(d.getHours() + 5);
-                    d.setMinutes(d.getMinutes() + 30);
                     endTimeist = ft1.format(d);
                     time_left = relTime(d);
 
@@ -487,6 +606,10 @@ public class NamecheapController {
 
              SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
              SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+             TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+             TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+             parser.setTimeZone(utcTimeZone);
+             ft1.setTimeZone(istTimeZone);
              logger.info("Namecheap Detect Live Service Ran");
              LiveMap lm = liveMaprepo.findById(1).get();
              //LiveMap lm = liveMaprepo.getReferenceById(1);
@@ -519,8 +642,6 @@ public class NamecheapController {
                      String time_left;
                      try {
                          d = parser.parse(endTime);
-                         d.setHours(d.getHours() + 5);
-                         d.setMinutes(d.getMinutes() + 30);
                          //endTimeist = ft1.format(d);
                          time_left = relTime(d);
 
@@ -534,18 +655,23 @@ public class NamecheapController {
                      //int age= item.get;
                      Float est=item.getEstibotValue();
                      List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
-                     bid=currbid+5;
-                     row.add(new InlineKeyboardButton("+5",bid+" "+item.getId()+" "+domain));
+                     List<InlineKeyboardButton> row1= new ArrayList<InlineKeyboardButton>();
                      bid=currbid+10;
-                     row.add(new InlineKeyboardButton("+10", bid+" "+item.getId()+" "+domain));
-                     bid=currbid+15;
-                     row.add(new InlineKeyboardButton("+15", bid+" "+item.getId()+" "+domain));
+                     row.add(new InlineKeyboardButton("+10",bid+" "+item.getId()+" "+domain));
+                     bid=currbid+25;
+                     row.add(new InlineKeyboardButton("+25", bid+" "+item.getId()+" "+domain));
+                     bid=currbid+50;
+                     row.add(new InlineKeyboardButton("+50", bid+" "+item.getId()+" "+domain));
+                     row1.add(new InlineKeyboardButton("custom", "c "+item.getId()+" "+domain+" "+currbid));
                      List<List<InlineKeyboardButton>> rows= new ArrayList<>();
                      rows.add(row);
+                     rows.add(row1);
                      InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+
                      String text= "Namecheap Live Detect \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+currbid+" \n\nEST: "+est+" \n\nLink: "+"https://www.namecheap.com/market/"+domain;
                      try {
-                         Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L,text,inlineKeyboardMarkup));
+                         Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L
+                                 ,text,inlineKeyboardMarkup));
                      }
                      catch(RetryableException re)
                      {
@@ -554,7 +680,8 @@ public class NamecheapController {
                          logger.info(re.getMessage());
                          try {
                              Thread.sleep(30000);
-                             Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L,text,inlineKeyboardMarkup));
+                             Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L
+                                     ,text,inlineKeyboardMarkup));
                          }
                          catch(InterruptedException ie)
                          {
@@ -590,7 +717,7 @@ public class NamecheapController {
                          for(int i=0;i<n1;i++)
                          {
                              Livencdb item1=items1.get(i);
-                             String domain= item1.getName();
+                             String domain= item1.getName().toLowerCase();
                              String id= item1.getId();
                              if(!map.containsKey(id)) {
                                  logger.info("Detected Live Domain Namecheap: " + domain);
@@ -604,8 +731,6 @@ public class NamecheapController {
                                  String time_left;
                                  try {
                                      d = parser.parse(endTime);
-                                     d.setHours(d.getHours() + 5);
-                                     d.setMinutes(d.getMinutes() + 30);
                                      //endTimeist = ft1.format(d);
                                      time_left = relTime(d);
 
@@ -618,18 +743,22 @@ public class NamecheapController {
                                  Float bid=0.0f;
                                  Float est = item1.getEstibotValue();
                                  List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
-                                 bid=currbid+5;
-                                 row.add(new InlineKeyboardButton("+5",bid+" "+item1.getId()+" "+domain));
+                                 List<InlineKeyboardButton> row1= new ArrayList<InlineKeyboardButton>();
                                  bid=currbid+10;
-                                 row.add(new InlineKeyboardButton("+10", bid+" "+item1.getId()+" "+domain));
-                                 bid=currbid+15;
-                                 row.add(new InlineKeyboardButton("+15", bid+" "+item1.getId()+" "+domain));
+                                 row.add(new InlineKeyboardButton("+10",bid+" "+item1.getId()+" "+domain));
+                                 bid=currbid+25;
+                                 row.add(new InlineKeyboardButton("+25", bid+" "+item1.getId()+" "+domain));
+                                 bid=currbid+50;
+                                 row.add(new InlineKeyboardButton("+50", bid+" "+item1.getId()+" "+domain));
+                                 row1.add(new InlineKeyboardButton("custom", "c "+item1.getId()+" "+domain+" "+currbid));
                                  List<List<InlineKeyboardButton>> rows= new ArrayList<>();
                                  rows.add(row);
+                                 rows.add(row1);
                                  InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
                                  String text= "Namecheap Live Detect \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+currbid+" \n\nEST: "+est+" \n\nLink: "+"https://www.namecheap.com/market/"+domain;
                                  try {
-                                     Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L,text,inlineKeyboardMarkup));
+                                     Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L
+                                             ,text,inlineKeyboardMarkup));
                                  }
                                  catch(RetryableException re)
                                  {
@@ -638,7 +767,8 @@ public class NamecheapController {
                                      logger.info(re.getMessage());
                                      try {
                                          Thread.sleep(30000);
-                                         Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L,text,inlineKeyboardMarkup));
+                                         Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L
+                                                 ,text,inlineKeyboardMarkup));
                                      }
                                      catch(InterruptedException ie)
                                      {
@@ -688,8 +818,6 @@ public class NamecheapController {
                                  String time_left;
                                  try {
                                      d = parser.parse(endTime);
-                                     d.setHours(d.getHours() + 5);
-                                     d.setMinutes(d.getMinutes() + 30);
                                      //endTimeist = ft1.format(d);
                                      time_left = relTime(d);
 
@@ -703,18 +831,23 @@ public class NamecheapController {
                                  Float bid=0.0f;
                                  Float est = item1.getEstibotValue();
                                  List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
-                                 bid=currbid+5;
-                                 row.add(new InlineKeyboardButton("+5",bid+" "+item1.getId()+" "+domain));
+                                 List<InlineKeyboardButton> row1= new ArrayList<InlineKeyboardButton>();
                                  bid=currbid+10;
-                                 row.add(new InlineKeyboardButton("+10", bid+" "+item1.getId()+" "+domain));
-                                 bid=currbid+15;
-                                 row.add(new InlineKeyboardButton("+15", bid+" "+item1.getId()+" "+domain));
+                                 row.add(new InlineKeyboardButton("+10",bid+" "+item1.getId()+" "+domain));
+                                 bid=currbid+25;
+                                 row.add(new InlineKeyboardButton("+25", bid+" "+item1.getId()+" "+domain));
+                                 bid=currbid+50;
+                                 row.add(new InlineKeyboardButton("+50", bid+" "+item1.getId()+" "+domain));
+                                 row1.add(new InlineKeyboardButton("custom", "c "+item1.getId()+" "+domain+" "+currbid));
                                  List<List<InlineKeyboardButton>> rows= new ArrayList<>();
                                  rows.add(row);
+                                 rows.add(row1);
+
                                  InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
                                  String text= "Namecheap Live Detect \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+currbid+" \n\nEST: "+est+" \n\nLink: "+"https://www.namecheap.com/market/"+domain;
                                  try {
-                                     Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L,text,inlineKeyboardMarkup));
+                                     Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L
+                                             ,text,inlineKeyboardMarkup));
                                  }
                                  catch(RetryableException re)
                                  {
@@ -723,7 +856,8 @@ public class NamecheapController {
                                      logger.info(re.getMessage());
                                      try {
                                          Thread.sleep(30000);
-                                         Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L,text,inlineKeyboardMarkup));
+                                         Object obj = telegram.sendKeyboard(new SendMessage(-1001653862522L
+                                                 ,text,inlineKeyboardMarkup));
                                      }
                                      catch(InterruptedException ie)
                                      {
@@ -731,19 +865,14 @@ public class NamecheapController {
                                          Thread.currentThread().interrupt();
                                      }
                                  }
-                                 catch (Exception e)
+                                 catch(Exception e)
                                  {
                                      logger.info(e.getMessage());
                                  }
-
                                  Date date = new Date();
                                  String addtime = ft1.format(date);
                                  item1.setAddtime(addtime);
                                  item1.setTime_left(time_left);
-
-                                 //WasLive wasLive= new WasLive(time_left,addtime,"Dynadot",ld.getAuction_id(),domain, ld.getCurrent_bid_price(), ld.getEnd_time(), ld.getEstibot_appraisal(),ld.getUtf_name(),ld.getBids(),ld.getBidders(),ld.getAge(),ld.getEnd_time_stamp());
-                                 // wasLiveRepo.save(wasLive);
-
                                  liveNcRepo.save(item1);
                              }
                          }
@@ -753,52 +882,198 @@ public class NamecheapController {
              liveMaprepo.save(lm);
          }
     }
+
+    public class PreCheck implements Runnable
+    {
+        String ncid,domain;
+        Float maxprice;
+
+        public PreCheck(String ncid, String domain, Float maxprice) {
+            this.ncid = ncid;
+            this.domain = domain;
+            this.maxprice = maxprice;
+        }
+
+        @Override
+        public void run()
+        {
+            AuctionDetailNC detail= namecheapfeign.getAuctionDetailbyId(bearer,ncid);
+            Float minbid= detail.getMinBid();
+            if(maxprice<minbid)
+            {
+               //notify
+            }
+            else
+            {
+                String endTime= detail.getEndDate().substring(0,detail.getEndDate().length()-5);
+                try
+                {
+                    SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                    //SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+                    TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+                    //TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+                    parser.setTimeZone(utcTimeZone);
+                    Date d= parser.parse(endTime);
+                    d.setSeconds(d.getSeconds()-10);
+                    taskScheduler.schedule(new PlaceBid(ncid,maxprice,domain,endTime),d);
+                }
+                catch(ParseException p)
+                {
+                    logger.info(p.getMessage());
+                }
+            }
+        }
+    }
+    public class CheckOutbid implements Runnable
+    {
+        Float price,maxprice;
+        String ncid;
+        String domain;
+        ScheduledFuture scheduledFuture;
+
+        public CheckOutbid(Float price, Float maxprice, String ncid, String domain) {
+            this.price = price;
+            this.maxprice = maxprice;
+            this.ncid = ncid;
+            this.domain=domain;
+        }
+
+        @Override
+        public void run()
+        {
+            AuctionDetailNC detail= namecheapfeign.getAuctionDetailbyId(bearer,ncid);
+            Float pricenow = detail.getPrice();
+            Float minbid   = detail.getMinBid();
+            String endTime = detail.getEndDate();
+            String status= detail.getStatus();
+
+            if(status.equals("active")) {
+                if (pricenow > price) {
+                    if (minbid > maxprice)
+                    {
+                        //notify
+                        scheduledFuture.cancel(true);
+                    }
+                    else {
+                        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                        //SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+                        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+                        //TimeZone istTimeZone = TimeZone.getTimeZone("IST");
+                        parser.setTimeZone(utcTimeZone);
+                        //ft1.setTimeZone(istTimeZone);
+                        endTime = endTime.substring(0,endTime.length()-5);
+                        try
+                        {
+                            Date d = parser.parse(endTime);
+                            d.setSeconds(d.getSeconds() - 10);
+                            taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
+                            DBdetails dBdetails= repo.findByNamecheapid(ncid);
+                            dBdetails.setResult("Bid Placed And Scheduled");
+                            repo.save(dBdetails);
+                        }
+                        catch (ParseException p)
+                        {
+                            logger.info(p.getMessage());
+                        }
+                    }
+                    scheduledFuture.cancel(true);
+                }
+            }
+            else
+            {
+                if(detail.getPrice()==price)
+                {
+                    DBdetails dBdetails= repo.findByNamecheapid(ncid);
+                    dBdetails.setResult("Won");
+                    repo.save(dBdetails);
+                }
+                else
+                {
+                    DBdetails dBdetails= repo.findByNamecheapid(ncid);
+                    dBdetails.setResult("Loss");
+                    repo.save(dBdetails);
+                }
+                scheduledFuture.cancel(true);
+            }
+        }
+    }
     public class PlaceBid implements Runnable{
 
 
 
-        String ncid,domain;
-        Bidnc bid;
+        String ncid,domain, timeId;
+        Float maxprice;
 
 
 
 
 
-        public PlaceBid(String ncid, Bidnc bid,String domain)
+        public PlaceBid(String ncid, Float maxprice,String domain, String timeId)
         {
             this.ncid=ncid;
-            this.bid=bid;
+            this.maxprice=maxprice;
             this.domain=domain;
+            this.timeId=timeId;
             //this.service= new Service();
         }
         @Override
         public void run() {
-           ResponsePlaceBidNc pb= namecheapfeign.placeBidnc(bearer,ncid,bid);
-          // String domain= repo.findByNamecheapid(ncid).getDomain();
-           if(pb.getStatus().equals("processed"))
-           {
-               DBdetails db = repo.findByNamecheapid(ncid);
-               db.setTime_left("0d, 0h, 9m");
-               db.setIsBidPlaced(true);
-               db.setCurrbid(String.valueOf(pb.getAmount()));
-               //db.setBidAmount();
-               db.setResult("Bid Placed");
-               notifRepo.save(new Notification("Namecheap: SCHEDULED BID PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD at " + new Date()));
+            AuctionDetailNC detail= namecheapfeign.getAuctionDetailbyId(bearer,ncid);
+            String timeId1= detail.getEndDate().substring(0,detail.getEndDate().length()-5);
+            Float price= detail.getMinBid();
+            if(!timeId.equals(timeId1))
+            {
+                SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+                parser.setTimeZone(utcTimeZone);
+                try
+                {
+                    Date d = parser.parse(timeId1);
+                    d.setSeconds(d.getSeconds() - 10);
+                    taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId1), d);
+                    //DBdetails dBdetails= repo.findByNamecheapid(ncid);
+                    //dBdetails.setResult("Bid Placed And Scheduled");
+                    //repo.save(dBdetails);
+                }
+                catch (ParseException p)
+                {
+                    logger.info(p.getMessage());
+                }
+            }
+            else {
 
-               logger.info("Namecheap: scheduled bid placed of domain: " + domain);
-               repo.save(db);
-           }
-           else {
-               DBdetails db = repo.findByNamecheapid(ncid);
-               db.setIsBidPlaced(false);
-               db.setCurrbid(String.valueOf(pb.getAmount()));
-               //db.setBidAmount();
-               db.setResult("Bid Not Placed");
-               notifRepo.save(new Notification("Namecheap: SCHEDULED BID NOT PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD at " + new Date()));
+                if(price< maxprice) {
+                    Bidnc bid=new Bidnc(price);
+                    ResponsePlaceBidNc pb = namecheapfeign.placeBidnc(bearer, ncid, bid);
+                    //String domain= repo.findByNamecheapid(ncid).getDomain();
+                    if (pb.getStatus().equals("processed")) {
+                        DBdetails db = repo.findByNamecheapid(ncid);
+                        //db.setTime_left("0d, 0h, 9m");
+                        db.setIsBidPlaced(true);
+                        db.setCurrbid(String.valueOf(pb.getAmount()));
+                        //db.setBidAmount();
+                        db.setResult("Bid Placed");
+                        notifRepo.save(new Notification("Namecheap: SCHEDULED BID PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD at " + new Date()));
 
-               logger.info("Namecheap: scheduled bid not placed of domain: " + domain);
-               repo.save(db);
-           }
+                        logger.info("Namecheap: scheduled bid placed of domain: " + domain);
+                        repo.save(db);
+                    } else {
+                        DBdetails db = repo.findByNamecheapid(ncid);
+                        db.setIsBidPlaced(false);
+                        db.setCurrbid(String.valueOf(pb.getAmount()));
+                        //db.setBidAmount();
+                        db.setResult("Bid Not Placed");
+                        notifRepo.save(new Notification("Namecheap: SCHEDULED BID NOT PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD at " + new Date()));
+
+                        logger.info("Namecheap: scheduled bid not placed of domain: " + domain);
+                        repo.save(db);
+                    }
+                }
+                else
+                {
+                    //notify
+                }
+            }
         }
     }
 

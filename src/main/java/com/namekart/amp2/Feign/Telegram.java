@@ -1,5 +1,6 @@
 package com.namekart.amp2.Feign;
 
+import com.namekart.amp2.TelegramEntities.EditMessageReplyMarkup;
 import com.namekart.amp2.TelegramEntities.Message;
 import com.namekart.amp2.TelegramEntities.SendMessage;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -15,6 +16,9 @@ public interface Telegram {
     Object answerCallback(@RequestParam String callback_query_id, @RequestParam String text, @RequestParam boolean show_alert);
     @GetMapping("/sendMessage")
     Object sendAlert(@RequestParam Long chat_id, @RequestParam String text);
+
+    @GetMapping("/editmessagereplymarkup")
+    Object editMessage(@RequestBody EditMessageReplyMarkup editMessageReplyMarkup);
 
     @PostMapping("/sendMessage")
     Message sendKeyboard(@RequestBody SendMessage sendMessage);

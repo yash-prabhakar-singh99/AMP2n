@@ -830,6 +830,26 @@ List<Integer> list= new ArrayList<>();
             }
         }
 
+        @GetMapping("/tryschedule")
+        Boolean trysc()
+        {
+            Date now = new Date();
+            now.setSeconds(now.getSeconds()+30);
+            taskScheduler.schedule(new Try(),now);
+            return true;
+        }
+
+        public class Try implements Runnable
+        {
+
+            @Override
+            public void run() {
+                MapWrap mw = mapwraprepo.findById(1).get();
+                Map<Long,String> rm = mw.getRm();
+                logger.info(rm.get(3479995l));
+            }
+        }
+
     public class PlaceBiddc implements Runnable{
 
         List<Biddc> bids;
@@ -853,7 +873,7 @@ List<Integer> list= new ArrayList<>();
         @Override
         public void run() {
             List<String> succ= new ArrayList<>();
-            MapWrap mw = mapwraprepo.getReferenceById(1);
+            MapWrap mw = mapwraprepo.findById(1).get();
             Map<Long,String> rm = mw.getRm();
             SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
             SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");

@@ -7,6 +7,7 @@ import com.namekart.amp2.Feign.GoDaddyFeign;
 import com.namekart.amp2.Feign.Telegram;
 import com.namekart.amp2.GoDaddyEntities.*;
 import com.namekart.amp2.GoDaddySoapClient;
+import com.namekart.amp2.NamecheapEntity.Livencdb;
 import com.namekart.amp2.Repository.*;
 import com.namekart.amp2.stub.GetAuctionDetailsResponse;
 import feign.RetryableException;
@@ -121,6 +122,12 @@ logger.info(res.getAuctionEndTime());
     public void try1()
 
     {taskScheduler.scheduleAtFixedRate(asyncCalss::try2,1000);
+    }
+
+    @GetMapping("/getlivegd")
+    List<Lauction> getLive()
+    {
+        return liveGDrepo.findByLiveTrueOrderByIddDesc();
     }
 
     @GetMapping("/purchase")

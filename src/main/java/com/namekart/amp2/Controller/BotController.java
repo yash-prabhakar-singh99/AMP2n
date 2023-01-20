@@ -18,6 +18,14 @@ import java.util.logging.Logger;
 @CrossOrigin
 public class BotController {
 
+    @Autowired
+            NamecheapController namecheapController;
+    @Autowired
+            Controller dynadotController;
+    @Autowired
+            GoDaddyController goDaddyController;
+    @Autowired
+            DropCatchController dropCatchController;
     String bearernc = "Bearer ef7b03f63d8a94e2f083b991a74dd5852s5DuDtyOc9Ft1QZ5u0plxLpA0vlYdHFxEccAez6lh/wUyQNkOTCfqcOgrYMcvG4";
 
     @Autowired
@@ -34,23 +42,71 @@ public class BotController {
         {logger.info(update.getCallback_query().getData());
             CallbackQuery callbackQuery=update.getCallback_query();
             Long chat_id= update.getCallback_query().getMessage().getChat().getId();
-           // telegram.answerCallback(update.getCallback_query().getId(),"Pressed "+update.getCallback_query().getData(),true);
-            if(chat_id==-1001653862522L)
-            {
-                String data= callbackQuery.getData();
-                String[] arr= data.split(" ");
-                Bidnc bidnc= new Bidnc(Float.valueOf(arr[0]));
-                String ncid= arr[1];
-                String domain= arr[2];
-               ResponsePlaceBidNc pb= namecheapfeign.placeBidnc(bearernc,ncid,bidnc);
-               if(pb.getStatus().equals("processed"))
-               {
-                   telegram.answerCallback(callbackQuery.getId(),"Namecheap: Bid of "+bidnc.getMaxAmount()+" Placed on "+domain,false);
-               }
-               else {
-                   telegram.answerCallback(callbackQuery.getId(),"Namecheap: Bid of "+bidnc.getMaxAmount()+" Not Placed on "+domain,false);
-               }
-            }
+            String data= callbackQuery.getData();
+
+                // telegram.answerCallback(update.getCallback_query().getId(),"Pressed "+update.getCallback_query().getData(),true);
+                         //-1001653862522L
+            if (chat_id == -1001653862522L) {
+
+                    String[] arr = data.split(" ");
+                    String p=arr[0];
+                    String ncid = arr[1];
+                    String domain = arr[2];
+                    if(!p.equals("c")) {
+
+                        //namecheapController.schedulesingle(domain,ncid,p);
+                        telegram.answerCallback(callbackQuery.getId(), "Namecheap: Max bid of " +p+ " Scheduled for " + domain, false);
+                    }
+                    else
+                    {
+                        Float price= Float.valueOf(arr[3]);
+                        Float bid=0f;
+                        List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                        List<InlineKeyboardButton> row1= new ArrayList<InlineKeyboardButton>();
+                        List<InlineKeyboardButton> row2= new ArrayList<InlineKeyboardButton>();
+
+                        bid=price+10;
+                        row.add(new InlineKeyboardButton("+10",bid+" "+ncid+" "+domain));
+                        bid=price+25;
+                        row.add(new InlineKeyboardButton("+25", bid+" "+ncid+" "+domain));
+                        bid=price+50;
+                        row.add(new InlineKeyboardButton("+50", bid+" "+ncid+" "+domain));
+                        bid=price+75;
+                        row1.add(new InlineKeyboardButton("+75",bid+" "+ncid+" "+domain));
+                        bid=price+100;
+                        row1.add(new InlineKeyboardButton("+100", bid+" "+ncid+" "+domain));
+                        bid=price+150;
+                        row1.add(new InlineKeyboardButton("+150", bid+" "+ncid+" "+domain));
+                        bid=price+200;
+                        row2.add(new InlineKeyboardButton("+200",bid+" "+ncid+" "+domain));
+                        bid=price+300;
+                        row2.add(new InlineKeyboardButton("+300", bid+" "+ncid+" "+domain));
+                        bid=price+500;
+                        row2.add(new InlineKeyboardButton("+500", bid+" "+ncid+" "+domain));
+                        List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                        rows.add(row);
+                        rows.add(row1);
+                        rows.add(row2);
+                        InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                        EditMessageReplyMarkup edit = new EditMessageReplyMarkup(chat_id, update.getCallback_query().getMessage().getMessage_id(), inlineKeyboardMarkup);
+                        telegram.editMessage(edit);
+                    }
+                } else if (chat_id ==-834797664) {
+                    if (data.equals("custom")) {
+                        List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                        List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+                        row.add(new InlineKeyboardButton("One", "1"));
+                        row.add(new InlineKeyboardButton("two", "2"));
+                        row1.add(new InlineKeyboardButton("three", "3"));
+                        row1.add(new InlineKeyboardButton("four", "4"));
+                        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                        rows.add(row);
+                        rows.add(row1);
+                        InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                        EditMessageReplyMarkup edit = new EditMessageReplyMarkup(chat_id, update.getCallback_query().getMessage().getMessage_id(), inlineKeyboardMarkup);
+                        telegram.editMessage(edit);
+                    }
+                }
             return callbackQuery;}
         else return update.getMessage();
     }
@@ -59,10 +115,14 @@ public class BotController {
     Message sendkeyboard()
     {
         List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row1= new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("One","1"));
         row.add(new InlineKeyboardButton("two", "2"));
+        row1.add(new InlineKeyboardButton("custom", "custom"));
+
         List<List<InlineKeyboardButton>> rows= new ArrayList<>();
         rows.add(row);
+        rows.add(row1);
         InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
        return telegram.sendKeyboard(new SendMessage(-834797664L,"Your keyboard",inlineKeyboardMarkup));
     }
