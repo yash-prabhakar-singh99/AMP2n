@@ -10,6 +10,14 @@ import java.util.List;
 @Repository
 public interface LiveRepo extends JpaRepository<LiveDetails,Long> {
 List<LiveDetails> findByLiveTrueOrderByIdDesc();
+    List<LiveDetails> findByInitialListTrue();
+    List<LiveDetails> findByInitialListTrueOrderByESTDesc();
+    List<LiveDetails> findByEndListTrueOrderByESTDesc();
+
+
+    List<LiveDetails> findByEndListTrue();
+
+
 
     @Query("SELECT u FROM LiveDetails u WHERE u.auction_id = ?1")
 LiveDetails findByAuctionid(Long auction_id);

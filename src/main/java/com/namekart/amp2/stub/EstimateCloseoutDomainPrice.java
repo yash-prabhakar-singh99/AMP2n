@@ -45,6 +45,14 @@ public class EstimateCloseoutDomainPrice {
     protected String domainName;
     protected boolean addPrivacy;
 
+    public EstimateCloseoutDomainPrice() {
+    }
+
+    public EstimateCloseoutDomainPrice(String domainName, boolean addPrivacy) {
+        this.domainName = domainName;
+        this.addPrivacy = addPrivacy;
+    }
+
     /**
      * Gets the value of the domainName property.
      * 

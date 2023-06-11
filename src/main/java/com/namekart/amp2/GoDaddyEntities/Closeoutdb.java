@@ -13,7 +13,17 @@ public class Closeoutdb {
 
     String platform, domain,currPrice,endTime,endTimeist,timeLeft,ourPrice,gdv,auctype,bidders,age,est,status;
 
-    public Closeoutdb(String platform,String domain, String currPrice, String endTime, String endTimeist, String timeLeft, String ourPrice, String gdv, String auctype, String status) {
+    Boolean watchlisted;
+
+    public Boolean getWatchlisted() {
+        return watchlisted;
+    }
+
+    public void setWatchlisted(Boolean watchlisted) {
+        this.watchlisted = watchlisted;
+    }
+
+    public Closeoutdb(String platform, String domain, String currPrice, String endTime, String endTimeist, String timeLeft, String ourPrice, String gdv, String auctype, String status) {
         this.domain = domain;
         this.currPrice = currPrice;
         this.endTime = endTime;

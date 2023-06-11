@@ -20,7 +20,7 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 public class OpenFeignLogConfig {
 
-    @Bean
+    @Bean(name="FeignDecoder",value = "FeignDecoder")
     public Decoder feignDecoder() {
         return new ResponseEntityDecoder(new SpringDecoder(feignHttpMessageConverter()));
     }

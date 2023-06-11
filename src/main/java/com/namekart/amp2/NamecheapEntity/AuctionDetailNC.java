@@ -20,7 +20,9 @@ public class AuctionDetailNC {
 
     String auctionType;
 
-    Float estibotValue, minBid, price, startPrice, renewPrice, soldprice;
+    Float minBid, price, startPrice, renewPrice, soldprice;
+
+    Integer estibotValue;
 
     Integer bidCount, ahrefsDomainRating, alexaRanking, backlinksCount, extensionsTaken, keywordSearchCount, monthlyVisitors, pageRank, soldYear, umbrellaRanking;
 
@@ -91,11 +93,11 @@ public class AuctionDetailNC {
         this.keywordSearchQuery = keywordSearchQuery;
     }
 
-    public Float getEstibotValue() {
+    public Integer getEstibotValue() {
         return estibotValue;
     }
 
-    public void setEstibotValue(Float estibotValue) {
+    public void setEstibotValue(Integer estibotValue) {
         this.estibotValue = estibotValue;
     }
 

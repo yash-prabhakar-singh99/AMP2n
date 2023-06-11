@@ -1,9 +1,8 @@
 package com.namekart.amp2.GoDaddyEntities;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+
+import javax.persistence.*;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAttribute;
@@ -18,10 +17,54 @@ public class Lauction {
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     private Long idd;
     @XmlAttribute(name = "Name")
-    private String Name;
+    private String name;
+
+    public String getAuctionEndTime() {
+        return AuctionEndTime;
+    }
+
+    public void setAuctionEndTime(String auctionEndTime) {
+        AuctionEndTime = auctionEndTime;
+    }
+
+    @XmlAttribute(name = "AuctionEndTime")
+    private String AuctionEndTime;
+
+    private Integer GDV;
+
+    public Integer getGDV() {
+        return GDV;
+    }
+
+
+    public String getOneYearTLDRenewal() {
+        return OneYearTLDRenewal;
+    }
+
+    public void setOneYearTLDRenewal(String oneYearTLDRenewal) {
+        OneYearTLDRenewal = oneYearTLDRenewal;
+    }
+
+    public String getIsHighestBidder() {
+        return IsHighestBidder;
+    }
+
+    public void setIsHighestBidder(String isHighestBidder) {
+        IsHighestBidder = isHighestBidder;
+    }
+
+    public void setGDV(Integer GDV) {
+        this.GDV = GDV;
+    }
 
     @XmlAttribute(name = "Traffic")
     private String Traffic;
+
+    @XmlAttribute(name = "OneYearTLDRenewal")
+    private String OneYearTLDRenewal;
+
+    @XmlAttribute(name = "IsHighestBidder")
+    private String IsHighestBidder;
 
     @XmlAttribute(name = "BidCount")
     private String BidCount;
@@ -75,11 +118,11 @@ public class Lauction {
     }
 
     public String getName() {
-        return Name;
+        return name;
     }
 
     public void setName(String name) {
-        Name = name;
+        name = name;
     }
 
     public String getTraffic() {

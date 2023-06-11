@@ -17,6 +17,14 @@ public class LiveMap {
     @Column(name = "auction_id")
     Map<String,Long> map;
 
+    public LiveMap(Integer id) {
+        this.id = id;
+        this.map= new HashMap<>();
+        this.mapnc=new HashMap<>();
+        this.mapgd=new HashMap<>();
+        this.mapdc= new HashMap<>();
+        this.mapns=new HashMap<>();
+    }
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "mapnc",
@@ -104,6 +112,9 @@ public class LiveMap {
     public LiveMap() {
         this.map= new HashMap<>();
         this.mapnc=new HashMap<>();
+        this.mapgd=new HashMap<>();
+        this.mapdc= new HashMap<>();
+        this.mapns=new HashMap<>();
     }
 
     public Integer getId() {

@@ -1,5 +1,7 @@
 package com.namekart.amp2.NamecheapEntity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class ResponsePlaceBidNc {
     String id, status, createdDate;
     Float maxAmount, amount, index;
@@ -56,10 +58,12 @@ public class ResponsePlaceBidNc {
         this.index = index;
     }
 
+    @JsonProperty("isLeadingBid")
     public Boolean getLeadingBid() {
         return isLeadingBid;
     }
 
+    @JsonProperty("isLeadingBid")
     public void setLeadingBid(Boolean leadingBid) {
         isLeadingBid = leadingBid;
     }

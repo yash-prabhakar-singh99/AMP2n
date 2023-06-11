@@ -1,33 +1,65 @@
 package com.namekart.amp2.NamesiloEntities;
 
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+
+import javax.persistence.*;
 import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlElementWrapper;
+import java.util.List;
 
 @Entity
 public class SiloAuctionDetails {
 
 
-    @XmlElement(name="id")
-    Long id;
+    //@XmlElement(name="id")
+    @JacksonXmlProperty(localName = "id")
+    Long nsid;
 
     @Id
     @GeneratedValue(strategy= GenerationType.IDENTITY)
-    Long idd;
+    @JacksonXmlProperty(localName = "idd")
+    //@XmlElement(name="idd")
+    Long id;
+    Boolean initialList, endList;
+
+    public Boolean getInitialList() {
+        return initialList;
+    }
+
+    public void setInitialList(Boolean initialList) {
+        this.initialList = initialList;
+    }
+
+    public Boolean getEndList() {
+        return endList;
+    }
+
+    public void setEndList(Boolean endList) {
+        this.endList = endList;
+    }
+
+    @Transient
+    List<SiloError> errors;
+
+    public List<SiloError> getErrors() {
+        return errors;
+    }
+
+    public void setErrors(List<SiloError> errors) {
+        this.errors = errors;
+    }
 
     Boolean live;
 
     String addTime, timeLeft;
 
-    public Long getIdd() {
-        return idd;
+    public Long getNsid() {
+        return nsid;
     }
 
-    public void setIdd(Long idd) {
-        this.idd = idd;
+    public void setNsid(Long nsid) {
+        this.nsid = nsid;
     }
 
     public Boolean getLive() {
@@ -76,6 +108,37 @@ public class SiloAuctionDetails {
     String domainCreatedOn;
     @XmlElement(name="auctionEndsOn")
     String auctionEndsOn;
+
+    Integer gdv;
+
+    public Integer getGdv() {
+        return gdv;
+    }
+
+    public void setGdv(Integer gdv) {
+        this.gdv = gdv;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    @XmlElement(name="url")
+    String url;
+
+    Integer bidsQuantity;
+
+    public Integer getBidsQuantity() {
+        return bidsQuantity;
+    }
+
+    public void setBidsQuantity(Integer bidsQuantity) {
+        this.bidsQuantity = bidsQuantity;
+    }
 
     public Long getId() {
         return id;

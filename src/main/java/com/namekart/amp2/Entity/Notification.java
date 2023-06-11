@@ -1,9 +1,11 @@
 package com.namekart.amp2.Entity;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import javax.persistence.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
 
 @Entity
 public class Notification {
@@ -12,6 +14,36 @@ public class Notification {
     Long ID;
 
     String message;
+
+    String platform;
+
+    @Temporal(TemporalType.DATE)
+    Date date;
+
+    @Temporal(TemporalType.TIME)
+    Date time;
+
+    String times;
+    public String getPlatform() {
+        return platform;
+    }
+
+    public void setPlatform(String platform) {
+        this.platform = platform;
+    }
+
+    public Notification(String platform,String times ,String message)
+    {
+        //SimpleDateFormat timeft = new SimpleDateFormat("dd/MM HH:mm");
+        //TimeZone ist = TimeZone.getTimeZone("IST");
+        //timeft.setTimeZone(ist);
+        this.date= new Date();
+        this.time=new Date();
+        //this.times = timeft.format(date);
+        this.times= times;
+        this.platform= platform;
+        this.message = times+" | "+platform+": "+message;
+    }
 
     public Notification(String message) {
         this.message = message;
@@ -23,7 +55,6 @@ public class Notification {
     public Long getID() {
         return ID;
     }
-
 
     public String getMessage() {
         return message;

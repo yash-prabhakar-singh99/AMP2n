@@ -9,6 +9,6 @@ RUN mvn clean install -Dmaven.test.skip=true -Dorg.slf4j.simpleLogger.log.org.ap
 FROM openjdk:17-oracle
 WORKDIR /appdocker
 COPY --from=MAVEN_BUILD /build/target/AMP2-0.0.1-SNAPSHOT.jar /appdocker/amp2docker.jar
-EXPOSE 8080
+EXPOSE 88
 ENTRYPOINT [ "java","-Dfile.encoding=UTF-8","-Djava.security.egd=file:/dev/./urandom","-jar","/appdocker/amp2docker.jar"]
 

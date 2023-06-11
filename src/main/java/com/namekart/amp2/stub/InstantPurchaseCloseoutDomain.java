@@ -54,6 +54,17 @@ public class InstantPurchaseCloseoutDomain {
     protected boolean acceptAMA;
     protected boolean acceptDNRA;
 
+    public InstantPurchaseCloseoutDomain(String domainName, String closeoutDomainPriceKey, boolean acceptUTOS, boolean acceptAMA, boolean acceptDNRA) {
+        this.domainName = domainName;
+        this.closeoutDomainPriceKey = closeoutDomainPriceKey;
+        this.acceptUTOS = acceptUTOS;
+        this.acceptAMA = acceptAMA;
+        this.acceptDNRA = acceptDNRA;
+    }
+
+    public InstantPurchaseCloseoutDomain() {
+    }
+
     /**
      * Gets the value of the domainName property.
      * 

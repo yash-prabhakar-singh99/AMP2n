@@ -9,6 +9,33 @@ import javax.persistence.Id;
 public class AuctionDetailDC {
     Long auctionId, highBid, maxBid, numberOfBidders, minimumNextBid, bidIncrement;
     String name, endTime, highestBidder, type;
+    Integer GDV;
+    Boolean initialList, endList;
+
+    public Boolean getInitialList() {
+        return initialList;
+    }
+
+    public void setInitialList(Boolean initialList) {
+        this.initialList = initialList;
+    }
+
+    public Boolean getEndList() {
+        return endList;
+    }
+
+    public void setEndList(Boolean endList) {
+        this.endList = endList;
+    }
+
+    public Integer getGDV() {
+        return GDV;
+    }
+
+    public void setGDV(Integer GDV) {
+        this.GDV = GDV;
+    }
+
     boolean winning;
 
     String addTime,timeLeft;

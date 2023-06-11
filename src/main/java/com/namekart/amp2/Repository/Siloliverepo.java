@@ -4,6 +4,12 @@ import com.namekart.amp2.NamesiloEntities.SiloAuctionDetails;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface Siloliverepo extends JpaRepository<SiloAuctionDetails,Long> {
+    SiloAuctionDetails findByNsid(Long nsid);
+
+    List<SiloAuctionDetails> findByEndListTrue();
+    List<SiloAuctionDetails> findByInitialListTrue();
 }

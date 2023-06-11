@@ -1,7 +1,6 @@
 package com.namekart.amp2;
 
-import com.namekart.amp2.GoDaddyEntities.AuctionList;
-import com.namekart.amp2.GoDaddyEntities.GetAuctionsDetailRes;
+import com.namekart.amp2.GoDaddyEntities.*;
 import com.namekart.amp2.GoDaddyEntities.PlaceBid;
 import com.namekart.amp2.stub.*;
 //import com.namekart.amp2soap.stub.*;
@@ -53,7 +52,7 @@ public GetAuctionsDetailRes getAuctionDetail(String domain)
 
         getAuctionDetails.setDomainName(domain);
         GetAuctionDetailsResponse response = (GetAuctionDetailsResponse) getWebServiceTemplate().marshalSendAndReceive(getAuctionDetails, new SoapHeaderManager("GdAuctionsBiddingWSAPI_v2/GetAuctionDetails"));
-        logger.info("yes1");
+        //logger.info("yes1");
         String xmlString= response.getGetAuctionDetailsResult();
         JAXBContext jaxbContext;
         GetAuctionsDetailRes res=null;
@@ -64,12 +63,12 @@ public GetAuctionsDetailRes getAuctionDetail(String domain)
             Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 
             res = (GetAuctionsDetailRes) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
-            logger.info(res.getAuctionEndTime());
+            //logger.info(res.getAuctionEndTime());
             //System.out.println(employee);
         }
         catch (JAXBException e)
         {
-            logger.info(e.getMessage());
+            logger.info(e.getMessage()+ xmlString);
         }
         return res;
 
@@ -98,7 +97,7 @@ public PlaceBid purchase(String domain, String price)
         Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 
         res = (PlaceBid) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
-        logger.info(res.getIsValid());
+        //logger.info(res.getIsValid());
         //System.out.println(employee);
     }
     catch (JAXBException e)
@@ -130,7 +129,57 @@ public PlaceBid purchase(String domain, String price)
             Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 
             res = (PlaceBid) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
-            logger.info(res.getIsValid());
+            //logger.info(res.getIsValid());
+            //System.out.println(employee);
+        }
+        catch (JAXBException e)
+        {
+            e.printStackTrace();
+        }
+        return res;
+    }
+
+    public EstimateCloseoutPrice estimateCloseoutPrice(String domain)
+    {
+        EstimateCloseoutDomainPrice request= new EstimateCloseoutDomainPrice(domain,false);
+        EstimateCloseoutDomainPriceResponse response= (EstimateCloseoutDomainPriceResponse) getWebServiceTemplate().marshalSendAndReceive(request, new SoapHeaderManager("GdAuctionsBiddingWSAPI_v2/EstimateCloseoutDomainPrice"));
+        String xmlString= response.getEstimateCloseoutDomainPriceResult();
+
+        JAXBContext jaxbContext;
+        EstimateCloseoutPrice res=null;
+        try
+        {
+            jaxbContext = JAXBContext.newInstance(EstimateCloseoutPrice.class);
+
+            Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+
+            res = (EstimateCloseoutPrice) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
+            //logger.info(res.getIsValid());
+            //System.out.println(employee);
+        }
+        catch (JAXBException e)
+        {
+            e.printStackTrace();
+        }
+        return res;
+    }
+
+    public InstantPurchaseCloseout instantPurchaseCloseout(String domain, String key)
+    {
+        InstantPurchaseCloseoutDomain request= new InstantPurchaseCloseoutDomain(domain,key,true,true,true);
+        InstantPurchaseCloseoutDomainResponse response= (InstantPurchaseCloseoutDomainResponse) getWebServiceTemplate().marshalSendAndReceive(request, new SoapHeaderManager("GdAuctionsBiddingWSAPI_v2/InstantPurchaseCloseoutDomain"));
+        String xmlString= response.getInstantPurchaseCloseoutDomainResult();
+
+        JAXBContext jaxbContext;
+        InstantPurchaseCloseout res=null;
+        try
+        {
+            jaxbContext = JAXBContext.newInstance(InstantPurchaseCloseout.class);
+
+            Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+
+            res = (InstantPurchaseCloseout) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
+            //logger.info(res.getIsValid());
             //System.out.println(employee);
         }
         catch (JAXBException e)
@@ -155,7 +204,7 @@ public PlaceBid purchase(String domain, String price)
             Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 
             res = (AuctionList) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
-            logger.info(res.getIsValid());
+            //logger.info(res.getIsValid());
             //System.out.println(employee);
         }
         catch (JAXBException e)

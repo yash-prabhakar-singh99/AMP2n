@@ -1,7 +1,7 @@
 package com.namekart.amp2.GoDaddyEntities;
 
 public class GDAppraisalResp {
-    String domain,status;
+    String domain;
     int govalue;
 
     public String getDomain() {
@@ -10,14 +10,6 @@ public class GDAppraisalResp {
 
     public void setDomain(String domain) {
         this.domain = domain;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
     }
 
     public int getGovalue() {

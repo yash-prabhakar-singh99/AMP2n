@@ -24,4 +24,7 @@ public interface Namecheapfeign {
     @GetMapping("/sales/{id}")
     AuctionDetailNC getAuctionDetailbyId(@RequestHeader(value = "Authorization", required = true,defaultValue = "Bearer ef7b03f63d8a94e2f083b991a74dd5852s5DuDtyOc9Ft1QZ5u0plxLpA0vlYdHFxEccAez6lh/wUyQNkOTCfqcOgrYMcvG4") String bearer, @PathVariable String id);
 
+    @GetMapping("/user/bids")
+    ResponseListBids getBidList(@RequestHeader(value = "Authorization", required = true,defaultValue = "Bearer ef7b03f63d8a94e2f083b991a74dd5852s5DuDtyOc9Ft1QZ5u0plxLpA0vlYdHFxEccAez6lh/wUyQNkOTCfqcOgrYMcvG4") String bearer);
+
 }

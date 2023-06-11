@@ -9,4 +9,10 @@ import java.util.List;
 @Repository
 public interface LiveDCrepo extends JpaRepository<AuctionDetailDC,Long> {
     List<AuctionDetailDC> findByOrderByIdDesc();
+
+    List<AuctionDetailDC> findByInitialListTrue();
+
+    List<AuctionDetailDC> findByEndListTrue();
+
+    AuctionDetailDC findByAuctionId(Long auctionId);
 }

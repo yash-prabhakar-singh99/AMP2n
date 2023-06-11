@@ -2,6 +2,17 @@ package com.namekart.amp2.TelegramEntities;
 
 public class Message {
     Long message_id;
+
+    Long message_thread_id;
+
+    public Long getMessage_thread_id() {
+        return message_thread_id;
+    }
+
+    public void setMessage_thread_id(Long message_thread_id) {
+        this.message_thread_id = message_thread_id;
+    }
+
     User from;
     Chat chat;
     Long date;

@@ -2,6 +2,24 @@ package com.namekart.amp2.TelegramEntities;
 
 public class SendMessage {
     Long chat_id;
+
+    public SendMessage(Long chat_id, Long message_thread_id, String text, InlineKeyboardMarkup reply_markup) {
+        this.chat_id = chat_id;
+        this.message_thread_id = message_thread_id;
+        this.text = text;
+        this.reply_markup = reply_markup;
+    }
+
+    public Long getMessage_thread_id()
+    {
+        return message_thread_id;
+    }
+
+    public void setMessage_thread_id(Long message_thread_id) {
+        this.message_thread_id = message_thread_id;
+    }
+
+    Long message_thread_id;
     String text;
     InlineKeyboardMarkup reply_markup;
 

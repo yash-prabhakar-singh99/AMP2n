@@ -1,17 +1,24 @@
 package com.namekart.amp2.Controller;
 
 import com.namekart.amp2.DCEntity.*;
-import com.namekart.amp2.Entity.DBdetails;
-import com.namekart.amp2.Entity.LiveMap;
-import com.namekart.amp2.Entity.Notification;
-import com.namekart.amp2.Entity.Response_PlaceBid;
+import com.namekart.amp2.Entity.*;
 import com.namekart.amp2.Feign.DropCatchFeign;
+import com.namekart.amp2.Feign.DropcatchFeign1;
 import com.namekart.amp2.Feign.Telegram;
+import com.namekart.amp2.GoDaddyEntities.Lauction;
+import com.namekart.amp2.NamecheapEntity.Livencdb;
 import com.namekart.amp2.Repository.*;
+import com.namekart.amp2.Status;
+import com.namekart.amp2.TelegramEntities.InlineKeyboardButton;
+import com.namekart.amp2.TelegramEntities.InlineKeyboardMarkup;
+import com.namekart.amp2.TelegramEntities.SendMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.mongodb.core.aggregation.DateOperators;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.text.ParseException;
@@ -19,8 +26,7 @@ import java.text.SimpleDateFormat;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.util.*;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 @RestController
@@ -33,6 +39,9 @@ public class DropCatchController {
     DropCatchFeign dropCatchFeign;
 
     @Autowired
+    DropcatchFeign1 dropCatchFeign1;
+
+    @Autowired
     MapWraprepo mapwraprepo;
 
     @Autowired
@@ -42,6 +51,9 @@ public class DropCatchController {
     MyRepo repo;
 
     @Autowired
+    AsyncCalss asyncCalss;
+
+    @Autowired
     Bidhisrepo bidhisrepo;
 
     @Autowired
@@ -49,29 +61,670 @@ public class DropCatchController {
 
     @Autowired
     LiveMaprepo liveMaprepo;
-    String token="eyJhbGciOiJSUzI1NiIsImtpZCI6IkI2ODhCNTVDMUNFMDI5OUEwNjRCQjYyNzM5MkMxQkYyQjE1OEU0NjBSUzI1NiIsInR5cCI6ImF0K2p3dCIsIng1dCI6InRvaTFYQnpnS1pvR1M3WW5PU3diOHJGWTVHQSJ9.eyJuYmYiOjE2Njc2NTM3NjcsImV4cCI6MTY2NzY1NTU2NywiaXNzIjoiaHR0cHM6Ly9hdXRoLnRjZGV2b3BzLmNvbSIsImF1ZCI6WyJjbGllbnQiLCJkcm9wY2F0Y2hDbGllbnQiXSwiY2xpZW50X2lkIjoiYmFieXlvZGE6aGF3ayIsImp0aSI6Ijg3NjkwREY3RTY4MUYyMDIwQzEzNzNENkE5N0Q3MDM4IiwiaWF0IjoxNjY3NjUzNzY3LCJzY29wZSI6WyJjbGllbnQ6cmVhZC5hY2NvdW50SWQiLCJkcm9wY2F0Y2g6YXBpLnJlYWQiXX0.bmRjUSDnSkxDEO9VRurKceNBzNiaU6IGCpn8P_ZGtJk_ji22UhStbb8izZAYewMzw8tIoR-UbKTb5sPDmxpQDA9OfciYrcLzozr3sipKe904T08bkEDWSwBnAEWG18SIX03INXbNDrbMUMknsenekdwejk0gdqnnljMvp42LpwUcJRcmkv8vTcOQ1IsRDA7KP8bw6ciaEEYG8r9WZY2F2FskXq8i52gTXH9Yt_Lgj8U4_LEMWpHw9G5ByrwmzjVl8qmxnjIQFo_HEbztGGpC5MhjViQykkXAxc7OnJlI4Qclnj6FZQmHTr2C5T3IOHonRv71upvNWbjTFyx0_2Tf6g";
 
-    String bearer= "Bearer "+ token;
-
+    Boolean b=true;
+    Map<Long,String> map;
     Logger logger =Logger.getLogger("DropCatch Yash");
+
+    SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+    SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+
+    SimpleDateFormat timeft = new SimpleDateFormat("dd/MM HH:mm");
+
+    TimeZone utc= TimeZone.getTimeZone("UTC");
+    TimeZone ist = TimeZone.getTimeZone("IST");
+
+    String bearer;
+
+    @Autowired
+    @Qualifier(value = "workStealingPool")
+    ForkJoinPool threadPoolExecutor;
+    public DropCatchController()
+    {
+        parser.setTimeZone(utc);
+        timeft.setTimeZone(ist);
+        ft1.setTimeZone(ist);
+        taskmap= new ConcurrentHashMap<>();
+        map=new HashMap<>();
+    }
+
+    @Scheduled(fixedRate = 1200000)
+    void refreshBearer()
+    {
+        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+        String token = dropCatchFeign1.authorise(auth).getBody().getToken();
+        bearer= "Bearer "+token;
+    }
+
+    ConcurrentMap<String, Status> taskmap;
+    @Scheduled(cron = "0 30 08 ? * *", zone = "IST")
+    void refreshTaskMap()
+    {
+        Iterator<Map.Entry<String, Status> >
+                iterator = taskmap.entrySet().iterator();
+
+
+        while (iterator.hasNext()) {
+
+            Map.Entry<String,Status> entry = iterator.next();
+            ScheduledFuture future= entry.getValue().getFuture();
+            if(future.isCancelled()||future.isDone())
+            {
+                logger.info("Removing from taskmap, inactive scheduled domain:"+entry.getKey());
+                iterator.remove();
+            }
+
+        }
+    }
+    void enterTaskMap(String domain, ScheduledFuture scheduledFuture, String futureTask)
+    {
+        domain=domain.toLowerCase();
+        if(taskmap.containsKey(domain))
+        {
+            Status status=taskmap.get(domain);
+            status.getFuture().cancel(true);
+            status.setFuture(scheduledFuture);
+            status.setFutureTask(futureTask);
+        }
+        else
+        {
+            Status status= new Status(scheduledFuture,futureTask);
+            taskmap.put(domain,status);
+        }
+    }
+
+    void updateTaskMap(String domain, ScheduledFuture scheduledFuture, String futureTask)
+    {
+        domain= domain.toLowerCase();
+        if(taskmap.containsKey(domain)) {
+            Status status = taskmap.get(domain);
+            status.setFuture(scheduledFuture);
+            status.setFutureTask(futureTask);
+        }
+
+    }
+    void deleteTaskMap(String domain)
+    {
+        domain= domain.toLowerCase();
+        if(taskmap.containsKey(domain))
+        {   taskmap.get(domain).getFuture().cancel(false);
+            taskmap.remove(domain);}
+    }
 
     @GetMapping("/getauctiondc")
     Object getAuctiondc(@RequestParam int id)
     {
-        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-        String token = dropCatchFeign.authorise(auth).getBody().getToken();
-        String bearer= "Bearer "+token;
-        ResponseEntity<Object> r= dropCatchFeign.getAuctionDetail1(bearer,id);
+//        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//        String bearer= "Bearer "+token;
+        ResponseEntity<AuctionDetailDC> r= dropCatchFeign.getAuctionDetail(bearer,id);
         System.out.println(r.getStatusCodeValue());
-Object acdc= r.getBody();
+        AuctionDetailDC acdc= r.getBody();
         return acdc;
     }
 
+    @GetMapping("/cancel/dc")
+    void cancelBid(@RequestParam String domain,@RequestParam Long auctionId)
+    {
+        deleteTaskMap(domain);
+        DBdetails db= repo.findByPlatformAndAuctionId("Dropcatch",auctionId);
+        db.setResult("Bid Cancelled");
+        repo.save(db);
+    }
+    @Scheduled(fixedRate = 120000)
+    void refreshWatchlistDC()
+    {
+        List<DBdetails> list= repo.findByPlatformAndWatchlistIsTrueAndTrackIsFalse("Dropcatch");
+        //List<DBdetails> slist= repo.findByPlatformAndResultOrResultOrResultOrResult("Dropcatch", "Bid Scheduled", "Bid Placed", "Bid Placed And Scheduled", "Outbid");
+        List<DBdetails> slist= repo.findScheduledDC();
+        if(list.isEmpty()&& slist.isEmpty())
+            return;
+//        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//        String bearer= "Bearer "+token;
+        if(list!=null&&list.size()!=0) {
+            for (int i = 0; i < list.size(); i++) {
+                DBdetails db = list.get(i);
+                Long auctionId = db.getAuctionId();
+                String domain = db.getDomain();
+
+                try {
+
+                    AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                    if (ad != null) {
+                        String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                        Date date = null;
+                        String endTimeist = "";
+                        String time_left = "";
+                        long currbid = ad.getHighBid();
+                        long prevBid = Long.valueOf(db.getCurrbid());
+                        try {
+                            date = parser.parse(endTime);
+                            endTimeist = ft1.format(date);
+                            time_left = relTime(date);
+                        } catch (ParseException p) {
+                            logger.info(p.getMessage());
+                            continue;
+                        }
+                        Date now = new Date();
+                        if (date.before(now)) {
+                            db.setWatchlist(false);
+                            repo.save(db);
+                            continue;
+                        }
+                        int nw = db.getNw();
+                        if (nw == 0) {
+                            if (date.getTime() - now.getTime() > 86400000)
+                                nw = 4;
+                            else if (date.getTime() - now.getTime() > 3600000)
+                                nw = 3;
+                            else if (date.getTime() - now.getTime() > 600000)
+                                nw = 2;
+                            else if (date.getTime() - now.getTime() > 240000)
+                                nw = 1;
+                            db.setNw(nw);
+                        }
+                        if (prevBid < currbid) {
+                            String text = "Dropcatch\n\n" + domain + "\nNEW BID PLACED" + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid + "\n \nGDV: " + db.getGdv() + " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
+                            List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid", "b dc" + " " + auctionId + " " + domain + " " + currbid));
+                            row.add(new InlineKeyboardButton("Track", "t dc " + auctionId + " " + domain));
+                            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                    , text, inlineKeyboardMarkup));
+                        }
+
+                        if (date.getTime() - now.getTime() < 86400002 && date.getTime() - now.getTime() > 86280000 && nw >= 4) {
+                            String text = "Dropcatch\n\n" + domain + "\n<24 hrs LEFT" + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid + "\n \nGDV: " + db.getGdv() + " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
+                            List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid", "b dc" + " " + auctionId + " " + domain + " " + currbid));
+                            row.add(new InlineKeyboardButton("Track", "t dc " + auctionId + " " + domain));
+                            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                    , text, inlineKeyboardMarkup));
+                            nw = 3;
+                            db.setNw(nw);
+                        } else if (date.getTime() - now.getTime() < 3600002 && date.getTime() - now.getTime() > 3480000 && nw >= 3) {
+                            String text = "Dropcatch\n\n" + domain + "\n<1 hr LEFT" + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid + "\n \nGDV: " + db.getGdv() + " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
+                            List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid", "b dc" + " " + auctionId + " " + domain + " " + currbid));
+                            row.add(new InlineKeyboardButton("Track", "t dc " + auctionId + " " + domain));
+                            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                    , text, inlineKeyboardMarkup));
+                            nw = 2;
+                            db.setNw(nw);
+                        } else if (date.getTime() - now.getTime() < 600002 && date.getTime() - now.getTime() > 480000 && nw >= 2) {
+                            String text = "Dropcatch\n\n" + domain + "\n<10 mins LEFT" + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid + "\n \nGDV: " + db.getGdv() + " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
+                            List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid", "b dc" + " " + auctionId + " " + domain + " " + currbid));
+                            row.add(new InlineKeyboardButton("Track", "t dc " + auctionId + " " + domain));
+                            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                    , text, inlineKeyboardMarkup));
+                            nw = 1;
+                            db.setNw(nw);
+                        } else if (date.getTime() - now.getTime() < 240002 && date.getTime() - now.getTime() > 120000 && nw >= 1) {
+                            String text = "Dropcatch\n\n" + domain + "\n<4 mins LEFT" + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid + "\n \nGDV: " + db.getGdv() + " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
+                            List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid", "b dc" + " " + auctionId + " " + domain + " " + currbid));
+                            row.add(new InlineKeyboardButton("Track", "t dc " + auctionId + " " + domain));
+                            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                    , text, inlineKeyboardMarkup));
+                            nw = -1;
+                            db.setNw(nw);
+                        }
+
+
+                        db.setCurrbid(String.valueOf(currbid));
+                        db.setBidders(ad.getNumberOfBidders());
+                        db.setEndTimepst(endTime);
+                        db.setEndTimeist(endTimeist);
+                        db.setTime_left(time_left);
+                        repo.save(db);
+                    } else {
+                        db.setWatchlist(false);
+                        db.setWasWatchlisted(true);
+                        repo.save(db);
+                    }
+
+                } catch (Exception e) {
+                    Date now = new Date();
+                    String time = timeft.format(now);
+                    logger.info(time + ": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+                }
+
+            }
+        }
+        //scheduled
+
+        if(slist.isEmpty())
+            return;
+
+        for(int i=0;i<slist.size();i++) {
+            DBdetails db = slist.get(i);
+            Long auctionId = db.getAuctionId();
+            String domain = db.getDomain();
+
+            try {
+
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                if(ad!=null) {
+                    String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                    Date date = null;
+                    String endTimeist = "";
+                    String time_left = "";
+                    long currbid = ad.getHighBid();
+                    try {
+                        date = parser.parse(endTime);
+                        endTimeist = ft1.format(date);
+                        time_left = relTime(date);
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                        continue;
+                    }
+                    Date now= new Date();
+                    if(date.before(now))
+                    {
+                        if(ad.isWinning())
+                            db.setResult("Won");
+                        else
+                            db.setResult("Loss");
+
+                        repo.save(db);
+                        continue;
+                    }
+                    if(ad.getHighBid()>Long.valueOf(db.getBidAmount()))
+                    {
+                        if(!db.getResult().equals("Outbid"))
+                        {
+                            String text= "Dropcatch Auction OUTBID \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+ad.getHighBid()+"\nMin Next Bid: "+ ad.getMinimumNextBid()+"\nOur Max Bid: "+db.getBidAmount()+" \n\nGDV: "+db.getGdv()+" \n\nLink: "+"https://www.dropcatch.com/domain/" + domain;
+                            //-1001814695777L
+                            List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid","b dc "+ad.getAuctionId()+" "+domain+" "+ad.getHighBid()));
+                            row.add(new InlineKeyboardButton("Watch","w dc "+ad.getAuctionId()+" "+domain));
+                            row.add(new InlineKeyboardButton("Track","t dc "+ad.getAuctionId()+" "+domain));
+
+                            List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001866615838L
+                                    ,text,inlineKeyboardMarkup));
+                            db.setResult("Outbid");
+                        }
+                        //db.setResult("Outbid");
+                    }
+                    else if(b)
+                    {
+                        String time= timeft.format(now);
+                        String bid= db.getBidAmount();
+                        if (date.getTime() - now.getTime() < 270000) {
+                            ScheduledFuture place = taskScheduler.schedule(new PlaceBiddc1(domain, auctionId,Long.valueOf(db.getBidAmount()) , endTime), date);
+                            enterTaskMap(domain, place, "pb");
+
+                            telegram.sendAlert(-1001763199668l,1004l, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist);
+                            notifRepo.save(new Notification("Dropcatch", time, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist));
+                            logger.info(time + ": BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist + " i.e. " + date);
+
+                        } else {
+                            Date date1 = new Date(date.getTime() - 270000);
+                            ScheduledFuture pre = taskScheduler.schedule(new Precheck(domain, auctionId, Long.valueOf(db.getBidAmount())), date1);
+                            enterTaskMap(domain, pre, "pc");
+
+
+                            telegram.sendAlert(-1001763199668l,1004l, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist);
+                            notifRepo.save(new Notification("Dropcatch", time, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist));
+                            logger.info(time + ": BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist + " i.e. " + date);
+                        }
+                    }
+                    db.setCurrbid(String.valueOf(currbid));
+                    db.setBidders(ad.getNumberOfBidders());
+                    db.setEndTimepst(endTime);
+                    db.setEndTimeist(endTimeist);
+                    db.setTime_left(time_left);
+                    repo.save(db);
+                }
+                else
+                {
+                    /*db.setResult("");
+                    repo.save(db);
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    logger.info(time+": Scheduled Auction not refreshed of domain: "+domain);
+                    notifRepo.save(new Notification("Dropcatch",time,"Scheduled Auction not refreshed of domain: "+domain));
+*/
+                    if(!db.isBidPlaced())
+                    {
+                        Date now = new Date();
+                        String time= timeft.format(now);
+                        db.setResult("Loss");
+                        telegram.sendAlert(-1001763199668l, 841l,"Dropcatch: Hush!! Lost auction of " + domain + " at price: " + db.getCurrbid());
+                        notifRepo.save(new Notification("Dropcatch",time,"Hush!! Lost auction of " + domain + " at price: " + db.getCurrbid()));
+                        repo.save(db);
+                        logger.info(time+": Hush!! Lost auction of " + domain + " at price: " + db.getCurrbid());
+                        deleteTaskMap(domain);
+                    }
+                    else {
+                        AuctionResultdc r = dropCatchFeign.getAuctionResult(bearer, domain, 10).getBody().getItems().get(0);
+                        String domain1 = r.getDomain().toLowerCase();
+                        if (domain.equals(domain1)) {
+                            Date now = new Date();
+                            String time= timeft.format(now);
+                            if (r.getResult().equals("AuctionWon")) {
+                                telegram.sendAlert(-1001763199668l, 842l,"Dropcatch: Yippee!! Won auction of " + domain + " at price: " + r.getAmount());
+                                notifRepo.save(new Notification("Dropcatch",time,"Yippee!! Won auction of " + domain + " at price: " + r.getAmount()));
+                                db.setResult("Won");
+                                repo.save(db);
+                                logger.info(time+": Yippee!! Won auction of " + domain + " at price: " + r.getAmount());
+                            } else {
+                                db.setResult("Loss");
+                                telegram.sendAlert(-1001763199668l, "Dropcatch: Hush!! Lost auction of " + domain + " at price: " + r.getAmount());
+                                notifRepo.save(new Notification("Dropcatch",time,"Hush!! Lost auction of " + domain + " at price: " + r.getAmount()));
+                                repo.save(db);
+                                logger.info(time+": Hush!! Lost auction of " + domain + " at price: " + r.getAmount());
+
+                            }
+                            deleteTaskMap(domain);
+                        }
+                    }
+                }
+
+            } catch (Exception e) {
+                Date now = new Date();
+                String time = timeft.format(now);
+                logger.info(time + ": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+            }
+
+        }
+        b=false;
+    }
+
+    @Scheduled(fixedRate = 120000)
+    void refreshTrackDC()
+    {
+        List<DBdetails> list= repo.findByPlatformAndTrackIsTrue("Dropcatch");
+        if(list==null||list.size()==0)
+            return;
+        /*Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+        String bearer= "Bearer "+token;*/
+        for(int i=0;i<list.size();i++) {
+            DBdetails db = list.get(i);
+            Long auctionId = db.getAuctionId();
+            String domain = db.getDomain();
+
+            try {
+
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                if(ad!=null) {
+                    String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                    Date date = null;
+                    String endTimeist = "";
+                    String time_left = "";
+                    long currbid = ad.getHighBid();
+                    long prevBid=Long.valueOf(db.getCurrbid());
+                    try {
+                        date = parser.parse(endTime);
+                        endTimeist = ft1.format(date);
+                        time_left = relTime(date);
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                        continue;
+                    }
+                    Date now= new Date();
+                    if(date.before(now))
+                    {
+                        db.setWatchlist(false);
+                        repo.save(db);
+                        continue;
+                    }
+                    String text = "Dropcatch Live Track\n\n" + domain + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid + "\n \nGDV: " + db.getGdv() + " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
+                    List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                    row.add(new InlineKeyboardButton("Bid", "b dc" + " " + auctionId + " " + domain + " " + currbid));
+                    row.add(new InlineKeyboardButton("Remove", "rw dc " + auctionId + " " + domain));
+                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                    rows.add(row);
+                    InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                    Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                            , text, inlineKeyboardMarkup));
+
+
+                    db.setCurrbid(String.valueOf(currbid));
+                    db.setBidders(ad.getNumberOfBidders());
+                    db.setEndTimepst(endTime);
+                    db.setEndTimeist(endTimeist);
+                    db.setTime_left(time_left);
+                    repo.save(db);
+                }
+                else
+                {
+                    db.setWatchlist(false);
+                    db.setTrack(false);
+                    db.setWasWatchlisted(true);
+                    repo.save(db);
+                }
+
+            } catch (Exception e) {
+                Date now = new Date();
+                String time = timeft.format(now);
+                logger.info(time + ": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+            }
+
+        }
+
+    }
+
+    @Async
+    CompletableFuture<Boolean> refreshScheduled()
+    {
+
+        List<DBdetails> list= repo.findByPlatformAndResultOrResultOrResultOrResult("Dropcatch", "Bid Scheduled", "Bid Placed", "Bid Placed And Scheduled", "Outbid");
+        if(list==null||list.size()==0)
+            return CompletableFuture.completedFuture(true);
+        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+        String token = dropCatchFeign1.authorise(auth).getBody().getToken();
+        String bearer= "Bearer "+token;
+        for(int i=0;i<list.size();i++) {
+            DBdetails db = list.get(i);
+            Long auctionId = db.getAuctionId();
+            String domain = db.getDomain();
+
+            try {
+
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                if(ad!=null) {
+                    String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                    Date date = null;
+                    String endTimeist = "";
+                    String time_left = "";
+                    long currbid = ad.getHighBid();
+                    try {
+                        date = parser.parse(endTime);
+                        endTimeist = ft1.format(date);
+                        time_left = relTime(date);
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                        continue;
+                    }
+                    Date now= new Date();
+                    if(date.before(now))
+                    {
+                        if(ad.isWinning())
+                            db.setResult("Won");
+                        else
+                            db.setResult("Loss");
+
+                        repo.save(db);
+                        continue;
+                    }
+                    if(ad.getMinimumNextBid()>Long.valueOf(db.getBidAmount()))
+                    db.setResult("Outbid");
+                    db.setCurrbid(String.valueOf(currbid));
+                    db.setBidders(ad.getNumberOfBidders());
+                    db.setEndTimepst(endTime);
+                    db.setEndTimeist(endTimeist);
+                    db.setTime_left(time_left);
+                    repo.save(db);
+                }
+                else
+                {
+                    db.setResult("");
+                    repo.save(db);
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    logger.info(time+": Scheduled Auction not refreshed of domain: "+domain);
+                    notifRepo.save(new Notification("Dropcatch",time,"Scheduled Auction not refreshed of domain: "+domain));
+
+                }
+
+            } catch (Exception e) {
+                Date now = new Date();
+                String time = timeft.format(now);
+                logger.info(time + ": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+            }
+
+        }
+        return CompletableFuture.completedFuture(true);
+    }
+
+    void watchlistLive(String domain, Long auctionId, boolean track)
+    {
+        try
+        {
+        /*Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+        String bearer= "Bearer "+token;*/
+
+        AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+        String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+        Date date = new Date();
+        String endTimeist = "";
+        String time_left = "";
+        long currbid=ad.getHighBid();
+        try {
+            date = parser.parse(endTime);
+            endTimeist = ft1.format(date);
+            time_left = relTime(date);
+        } catch (ParseException p) {
+            logger.info(p.getMessage());
+        }
+            Optional<DBdetails> op= Optional.of(repo.findByPlatformAndAuctionId("Dropcatch",auctionId));
+            /*Integer gdv=0;
+            if(op.isPresent())
+            {
+                gdv= op.get().getGdv();
+                if(gdv==null||gdv==0)
+                {
+                    Optional<AuctionDetailDC> lauctiono= Optional.ofNullable(liveDCrepo.findByAuctionId(auctionId));
+                    if(lauctiono.isPresent())
+                    {
+                        gdv=lauctiono.get().getGDV();
+                    }
+                }
+            }*/
+        String text = "Dropcatch\n\n" + domain + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid //+ "\n \nGDV: " //+ gdv
+                +" \n\nLink: " +"https://www.dropcatch.com/domain/" + domain ;
+        List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+        row.add(new InlineKeyboardButton("Bid","b dc"+" "+auctionId+" "+domain+" "+currbid));
+        row.add(new InlineKeyboardButton("Remove","rw dc "+auctionId+" "+domain));
+        List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+        rows.add(row);
+        InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+        Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                ,text,inlineKeyboardMarkup));
+        DBdetails db=null;
+        if(op.isPresent())
+        {
+            db.setCurrbid(String.valueOf(currbid));
+            db.setBidders(ad.getNumberOfBidders());
+            db.setEndTimepst(endTime);
+            db.setEndTimeist(endTimeist);
+            db.setTime_left(time_left);
+
+        }
+        else {
+            //AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+            db = new DBdetails(domain, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), ad.getNumberOfBidders(),time_left, ad.getType(), "", endTime, endTimeist, "", false);
+            db.setFetched(true);
+        }
+        //db.setGdv(gdv);
+        db.setWatchlist(true);
+        if(track)
+        db.setTrack(true);
+        repo.save(db);
+
+    } catch (Exception e) {
+        Date now = new Date();
+        String time = timeft.format(now);
+        logger.info(time + ": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+    }
+    }
+
+    void instantUpdateWatchlist(DBdetails db)
+    {
+        String domain= db.getDomain();
+        Long auctionId= db.getAuctionId();
+        try
+        {
+            AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+            String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+            Date date = new Date();
+            String endTimeist = "";
+            String time_left = "";
+            long currbid=ad.getHighBid();
+            try {
+                date = parser.parse(endTime);
+                endTimeist = ft1.format(date);
+                time_left = relTime(date);
+            } catch (ParseException p) {
+                logger.info(p.getMessage());
+            }
+            Optional<DBdetails> op= Optional.of(repo.findByPlatformAndAuctionId("Dropcatch",auctionId));
+            String text = "Dropcatch\n\n" + domain + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid// + "\n \nGDV: "// + gdv
+                    +" \n\nLink: " +"https://www.dropcatch.com/domain/" + domain ;
+            List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+            row.add(new InlineKeyboardButton("Bid","b dc"+" "+auctionId+" "+domain+" "+currbid));
+            row.add(new InlineKeyboardButton("Remove","rw dc "+auctionId+" "+domain));
+            List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+            rows.add(row);
+            InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                    ,text,inlineKeyboardMarkup));
+
+                db.setCurrbid(String.valueOf(currbid));
+                db.setBidders(ad.getNumberOfBidders());
+                db.setEndTimepst(endTime);
+                db.setEndTimeist(endTimeist);
+                db.setTime_left(time_left);
+
+            //db.setGdv(gdv);
+            db.setWatchlist(true);
+           /* if(track)
+                db.setTrack(true);*/
+            repo.save(db);
+
+        } catch (Exception e) {
+            Date now = new Date();
+            String time = timeft.format(now);
+            logger.info(time + ": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+        }
+    }
     @GetMapping("/getauctionsdc")
     ResponseAuctionList getAuctionsdc() {
         try{
             Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-            String token = dropCatchFeign.authorise(auth).getBody().getToken();
+            String token = dropCatchFeign1.authorise(auth).getBody().getToken();
             String bearer= "Bearer "+token;
         ResponseEntity<ResponseAuctionList> re = dropCatchFeign.getAuctionDetails(bearer, 350, true, "Dropped", "EndTimeAsc");
       return re.getBody();
@@ -90,8 +743,8 @@ Object acdc= r.getBody();
             MapWrap postmapwrap()
     {
        return mapwraprepo.save(new MapWrap());
-
     }
+
 
     @GetMapping("/postmap")
     Map postmap(@RequestParam String domain, @RequestParam Long auctionId)
@@ -146,13 +799,15 @@ Object acdc= r.getBody();
 */
 
 
+    @Scheduled(cron = "0 05 20 ? * *", zone = "UTC")
     @GetMapping("/refreshdcmap")
-    List<Map> refresh1() {
+    List<Map> refresh1()
+    {
         try{
         List<Map> list= new ArrayList<>();
-        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-        String token = dropCatchFeign.authorise(auth).getBody().getToken();
-        String bearer= "Bearer "+token;
+//        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//        String bearer= "Bearer "+token;
             MapWrap mw=null;
             logger.info("yo1");
 
@@ -215,55 +870,303 @@ Object acdc= r.getBody();
 
     }
 
-    @PostMapping("/bulkbidscheduledc")
-    List<String> mainmain(@RequestBody List<ArrayList<String>> ddlist)
+    @PostMapping("/bulkbidscheduledc1")
+    List<Integer> mainmain1(@RequestBody List<ArrayList<String>> ddlist)
     {
-        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        List<Long> ids= new ArrayList<>();
         MapWrap mw =  mapwraprepo.getById(1);
-        Map<String,Long> map= mw.getMap();
-        Map<Long,String> rm= new HashMap<>();
-
-        List<String> failure= new ArrayList<>();
+       // Map<String,Long> map= mw.getMap();
+       // Map<Long,String> rm= mw.getRm();
+        List<Integer> result= new ArrayList<>();
+        int a=0;
         int n= ddlist.size();
-        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-        String token = dropCatchFeign.authorise(auth).getBody().getToken();
-        String bearer= "Bearer "+token;
-        Long test= map.get(ddlist.get(0).get(0).toLowerCase());
-        AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, test.intValue()).getBody();
-        String endTime = ad.getEndTime().substring(0,ad.getEndTime().length()-1);
-
-        logger.info(endTime);
-        Date date= new Date();
-        try{
-            date = parser.parse(endTime);
-            date.setHours(date.getHours()+5);
-            date.setMinutes(date.getMinutes()+26);
-            System.out.println(date);
-        }
-        catch(ParseException p)
-        {logger.info(p.getMessage());}
-        List<Biddc> bids= new ArrayList<>();
+//        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//        String bearer= "Bearer "+token;
         for(int i=0;i<n;i++)
         {
             String domain = ddlist.get(i).get(0).toLowerCase();
 
-            Long amount= Long.parseLong(ddlist.get(i).get(1));
-            Long auctionId= map.get(domain);
-            rm.put(auctionId,domain);
-            Biddc bid = new Biddc(auctionId,amount);
-            bids.add(bid);
+            try {
+
+                String maxbid= ddlist.get(i).get(1);
+                Long bid = Long.parseLong(maxbid);
+                //Long auctionId = map.get(domain);
+                //AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail1(bearer, domain,true).getBody().getItems().get(0);
+                Long auctionId= ad.getAuctionId();
+                Long minNextbid= ad.getMinimumNextBid();
+
+                Date now = new Date();
+                if(bid>=minNextbid) {
+                    String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+
+                    Date date= new Date();
+                    try {
+                        date = parser.parse(endTime);
+
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                    }
+
+                    String endTimeist = ft1.format(date);
+                    date.setSeconds(date.getSeconds() - 15);
+                    String time = timeft.format(now);
+                    if (date.getTime() - now.getTime() < 270000) {
+                        ScheduledFuture place = taskScheduler.schedule(new PlaceBiddc1(domain, auctionId, bid, endTime), date);
+                        enterTaskMap(domain, place, "pb");
+                        a++;
+                        telegram.sendAlert(-1001763199668l,1005l, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist);
+                        notifRepo.save(new Notification("Dropcatch", time, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist));
+                        logger.info(time + ": BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist + " i.e. " + date);
+
+                    } else {
+                        Date date1 = new Date(date.getTime() - 270000);
+                        ScheduledFuture pre = taskScheduler.schedule(new Precheck(domain, auctionId, bid), date1);
+                        enterTaskMap(domain, pre, "pc");
+
+                        a++;
+                        telegram.sendAlert(-1001763199668l,1005l,"Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist);
+                        notifRepo.save(new Notification("Dropcatch", time, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist));
+                        logger.info(time + ": BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist + " i.e. " + date);
+                    }
+                    String time_left = relTime(date);
+                    Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(auctionId));
+                    if (!op.isPresent()) {
+                        DBdetails db = new DBdetails(domain, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), maxbid, ad.getNumberOfBidders(), time_left, ad.getType(), "Bid Scheduled", endTime, endTimeist, "", false);
+                        repo.save(db);
+                        ids.add(db.getId());
+                    } else {
+                        DBdetails db = op.get();
+                        db.setCurrbid(String.valueOf(ad.getHighBid()));
+                        db.setEndTimepst(ad.getEndTime());
+                        db.setEndTimeist(endTimeist);
+                        db.setResult("Bid Scheduled");
+                        db.setTime_left(time_left);
+                        db.setBidAmount(maxbid);
+                        db.setBidders(ad.getNumberOfBidders());
+                        repo.save(db);
+                        ids.add(db.getId());
+                    }
+                }
+                else
+                {
+                    String time = ft1.format(now);
+
+                        notifRepo.save(new Notification("Dropcatch", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextbid));
+                        logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextbid);
+
+                }
+            }
+            catch(Exception E)
+            {
+               Date now= new Date();
+               String time= timeft.format(now);
+                logger.info(time+": "+E.getMessage());
+                notifRepo.save( new Notification("Dropcatch",time,"Bid not scheduled for domain: "+ domain+" with reason: "+E.getMessage()));
+            }
         }
-       // Date date1 = new Date();
-       // date1.setMinutes(date1.getMinutes()+2);
-        taskScheduler.schedule(new PlaceBiddc(bids),date);
-        return failure;
+       // asyncCalss.getGDVs(ids);
+        result.add(a); result.add(n);
+        return result;
+
     }
 
-    @PostMapping("/bulkbidscheduledc1")
-    List<Integer> mainmain1(@RequestBody List<ArrayList<String>> ddlist)
+    @GetMapping("/schedulesingledc")
+    long scheduleSingle(@RequestParam String domain,@RequestParam Long auctionId, @RequestParam Long bid)
     {
-        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-        SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+        try{
+//            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//            String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//            String bearer= "Bearer "+token;
+            String domainf= domain.toLowerCase();
+        AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+        Long minNextBid= ad.getMinimumNextBid();
+        if(minNextBid<=bid) {
+            String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+            Date date = new Date();
+            try {
+                date = parser.parse(endTime);
+
+            } catch (ParseException p) {
+                logger.info(p.getMessage());
+            }
+
+
+            date.setSeconds(date.getSeconds() - 15);
+            Date now = new Date();
+            String time = timeft.format(now);
+            if (date.getTime() - now.getTime() < 270000) {
+                ScheduledFuture place = taskScheduler.schedule(new PlaceBiddc1(domain, auctionId, bid, endTime), date);
+                enterTaskMap(domain, place, "pb");
+
+            } else {
+                Date date1 = new Date(date.getTime() - 270000);
+                ScheduledFuture pre = taskScheduler.schedule(new Precheck(domain, auctionId, bid), date1);
+                enterTaskMap(domain, pre, "pc");
+
+            }
+            Date finalDate = date;
+            CompletableFuture.runAsync(()->
+{
+    String time_left = relTime(finalDate);
+    String endTimeist = ft1.format(finalDate);
+    telegram.sendAlert(-1001763199668l,1005l, "Dropcatch: BID SCHEDULED for domain: " + domainf + " for max price: " + bid + " at " + endTimeist);
+    notifRepo.save(new Notification("Dropcatch", time, "Dropcatch: BID SCHEDULED for domain: " + domain + " for max price: " + bid + " at " + endTimeist));
+    logger.info(time + ": BID SCHEDULED for domain: " + domainf + " for max price: " + bid + " at " + endTimeist + " i.e. " + finalDate);
+
+    Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(auctionId));
+    DBdetails db = null;
+    if (!op.isPresent()) {
+        db = new DBdetails(domainf, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), String.valueOf(bid), ad.getNumberOfBidders(), time_left, ad.getType(), "Scheduled", endTime, endTimeist, "", false);
+
+
+    } else {
+        db = op.get();
+        db.setCurrbid(String.valueOf(ad.getHighBid()));
+        db.setEndTimepst(ad.getEndTime());
+        db.setEndTimeist(endTimeist);
+        db.setTime_left(time_left);
+        db.setBidAmount(String.valueOf(bid));
+        db.setBidders(ad.getNumberOfBidders());
+    }
+   /* Integer gdv = db.getGdv();
+    if (gdv == null || gdv == 0) {
+        gdv = liveDCrepo.findByAuctionId(auctionId).getGDV();
+        db.setGdv(gdv);
+    }*/
+    repo.save(db);
+},threadPoolExecutor);
+       return 0; }
+        else
+        {
+            CompletableFuture.runAsync(
+                    ()->
+                    {
+                        Date now = new Date();
+                        String time = ft1.format(now);
+                        telegram.sendAlert(-1001763199668l,1005l, "Bid NOT SCHEDULED for" + domainf + " as bid value is lower than accepted bid of " + minNextBid);
+                        notifRepo.save(new Notification("Dropcatch", time, "Bid NOT SCHEDULED for" + domainf + " as bid value is lower than accepted bid of " + minNextBid));
+                        logger.info(time + ": Bid NOT SCHEDULED for " + domainf + " as bid value is lower than accepted bid of " + minNextBid);
+
+                    },threadPoolExecutor
+            );
+            return minNextBid;
+        }
+    }
+            catch(Exception E)
+    {
+        Date now= new Date();
+        String time= timeft.format(now);
+        logger.info(time+": "+E.getMessage());
+        notifRepo.save( new Notification("Dropcatch",time,"Bid not scheduled for domain: "+ domain+" with reason: "+E.getMessage()));
+    }
+    return 0;
+    }
+    public class Precheck implements Runnable
+    {
+        String domain;
+        Long id;
+        Long maxbid;
+
+        public Precheck(String domain, Long id, Long maxbid) {
+            this.domain = domain;
+            this.id = id;
+            this.maxbid = maxbid;
+        }
+
+        @Override
+        public void run() {
+            try {
+//                Authorise auth = new Authorise("babyyoda:hawk", ":pvN|?'Sb4.Ah2N0t+7M");
+//                String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//                String bearer = "Bearer " + token;
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, id.intValue()).getBody();
+                Long minbid = ad.getMinimumNextBid();
+                if (ad.getHighBid() > maxbid)
+                {
+                    String endTime = ad.getEndTime().substring(0,ad.getEndTime().length()-1);
+                    Date date= null;
+                    String endTimeist="";
+                    String time_left="";
+                    try
+                    {
+                        date = parser.parse(endTime);
+                        time_left=relTime(date);
+                        endTimeist=ft1.format(date);
+                        // System.out.println(date);
+                    }
+                    catch(ParseException p)
+                    {
+                        logger.info(p.getMessage());}
+                    DBdetails db= repo.findByPlatformAndAuctionId("Dropcatch",id);
+                    db.setResult("Outbid");
+                    db.setEndTimepst(endTime);
+                    db.setTime_left(time_left);
+                    db.setEndTimeist(endTimeist);
+                    db.setCurrbid(String.valueOf(ad.getHighBid()));
+                    repo.save(db);
+                    String text= "Dropcatch Auction OUTBID \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+ad.getHighBid()+"\nMin Next Bid: "+ minbid+"\nOur Max Bid: "+maxbid+" \n\nGDV: "+db.getGdv()+" \n\nLink: "+"https://www.dropcatch.com/domain/" + domain;
+                    //-1001814695777L
+                    List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                    row.add(new InlineKeyboardButton("Bid","b dc "+ad.getAuctionId()+" "+domain+" "+ad.getHighBid()));
+                    row.add(new InlineKeyboardButton("Watch","w dc "+ad.getAuctionId()+" "+domain));
+                    row.add(new InlineKeyboardButton("Track","t dc "+ad.getAuctionId()+" "+domain));
+
+                    List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                    rows.add(row);
+                    InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                    Object obj = telegram.sendKeyboard(new SendMessage(-1001866615838L
+                            ,text,inlineKeyboardMarkup));
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    notifRepo.save(new Notification("Dropcatch",time,"Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + minbid ));
+                    logger.info(time+" : Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + minbid );
+
+                    //notify
+
+                    date.setMinutes(date.getMinutes()+30);
+                    ScheduledFuture res= taskScheduler.schedule(new GetResultdc(domain,id),date);
+                    updateTaskMap(domain,res,"gr");
+
+
+                } else {
+
+                    String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                    Date date = new Date();
+                    try {
+                        date = parser.parse(endTime);
+
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                    }
+                    date.setSeconds(date.getSeconds() - 15);
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    String endTimeist= ft1.format(date);
+                   ScheduledFuture place= taskScheduler.schedule(new PlaceBiddc1(domain, id, maxbid, endTime), date);
+                    updateTaskMap(domain,place,"pb");
+
+                    notifRepo.save(new Notification("Dropcatch",time,"Prechecking BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+endTimeist));
+                    logger.info(time+": Prechecking BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+endTimeist+" i.e. "+date);
+
+                }
+            }
+            catch(Exception e)
+            {
+
+                Date now= new Date();
+                String time= timeft.format(now);
+                logger.info(time+": "+e.getMessage());
+                notifRepo.save(new Notification("Dropcatch",time,"Prechecking BID NOT SCHEDULED for domain: "+domain+ " with error: "+e.getMessage()));
+            }
+        }
+
+    }
+
+    @PostMapping("/bulkbidscheduledc")
+    List<Integer> mainmain(@RequestBody List<ArrayList<String>> ddlist)
+    {
 
         MapWrap mw =  mapwraprepo.getById(1);
         Map<String,Long> map= mw.getMap();
@@ -271,31 +1174,44 @@ Object acdc= r.getBody();
         int d=0;
         Map<String,List<Biddc>> m = new HashMap<>();
         Map<Long,String> rm= mw.getRm();
-        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-        String token = dropCatchFeign.authorise(auth).getBody().getToken();
-        String bearer= "Bearer "+token;
+//        Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//        String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//        String bearer= "Bearer "+token;
         for(int i=0;i<n;i++)
         {
             String domain = ddlist.get(i).get(0).toLowerCase();
             try {
-
                 Long bid = Long.parseLong(ddlist.get(i).get(1));
                 Long auctionId = map.get(domain);
-                // rm.put(auctionId,domain);
                 AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
-
                 String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                Date date= new Date();
+                String endTimeist="";
+                String time_left="";
+                try
+                {
+                    date = parser.parse(endTime);
+                    time_left= relTime(date);
+                    endTimeist=ft1.format(date);
+                }
+                catch(ParseException p)
+                {logger.info(p.getMessage());}
+               //taskScheduler.schedule(new PlaceBiddc(set.getValue()),date);
                 Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(auctionId));
-                if (!op.isPresent()) {
-                    DBdetails db = new DBdetails(domain, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), ad.getNumberOfBidders(), ad.getType(), "", endTime, "", "", false);
+
+                if (!op.isPresent())
+                {
+                    DBdetails db = new DBdetails(domain, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), ad.getNumberOfBidders(),time_left ,ad.getType(), "", endTime, "", "", false);
                     repo.save(db);
-                } else {
+                }
+                else
+                {
                     DBdetails db = op.get();
                     db.setCurrbid(String.valueOf(ad.getHighBid()));
                     db.setEndTimepst(ad.getEndTime());
                     db.setBidders(ad.getNumberOfBidders());
                 }
-                logger.info(endTime);
+                //logger.info(endTime);
                 if (m.containsKey(endTime)) {
                     m.get(endTime).add(new Biddc(auctionId, bid));
                 } else {
@@ -305,8 +1221,10 @@ Object acdc= r.getBody();
             }
             catch(Exception E)
             {
+                Date now= new Date();
+                String time= timeft.format(now);
                 logger.info(E.getMessage());
-                notifRepo.save( new Notification("Dropcatch: Domain with name: "+ domain+" not found. See log for further info."));
+                notifRepo.save( new Notification("Dropcatch",time,"Domain with name: "+ domain+" not found. See log for further info."));
             }
         }
         for (Map.Entry<String, List<Biddc>> set : m.entrySet())
@@ -319,13 +1237,13 @@ Object acdc= r.getBody();
             String time_left="";
             try{
                 date = parser.parse(endTime);
-                date.setHours(date.getHours()+5);
-                date.setMinutes(date.getMinutes()+30);
+                //date.setHours(date.getHours()+5);
+                //date.setMinutes(date.getMinutes()+30);
                 time_left= relTime(date);
                 endTimeist=ft1.format(date);
                 date.setMinutes(date.getMinutes()-4);
                 bidplacetime=ft1.format(date);
-                System.out.println(date);
+                //System.out.println(date);
             }
             catch(ParseException p)
             {logger.info(p.getMessage());}
@@ -343,7 +1261,9 @@ Object acdc= r.getBody();
                 db.setBidplacetime(bidplacetime);
                 db.setResult("Bid Scheduled");
                 repo.save(db);
-                notifRepo.save(new Notification("Dropcatch: BID SCHEDULED for domain: "+db.getDomain()+ " for price: "+db.getBidAmount()+" at "+db.getEndTimeist()));
+                Date now= new Date();
+                String time= timeft.format(now);
+                notifRepo.save(new Notification("Dropcatch",time,"BID SCHEDULED for domain: "+db.getDomain()+ " for price: "+db.getBidAmount()+" at "+db.getEndTimeist()));
                 logger.info("Dropcatch: BID SCHEDULED for domain: "+db.getDomain()+ " for price: "+db.getBidAmount()+" at "+db.getEndTimeist());
 
             }
@@ -366,8 +1286,7 @@ List<Integer> list= new ArrayList<>();
             Map<Long,Long> rb= new HashMap<>();
             Map<String,List<String>> m = new HashMap<>();
             List<Biddc> bids = new ArrayList<>();
-            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
+
             for(int i=0;i<n;i++)
             {
                 String domain = ddlist.get(i).get(0).toLowerCase();
@@ -381,15 +1300,17 @@ List<Integer> list= new ArrayList<>();
                 }
                 catch(Exception E)
                 {
+                    Date now= new Date();
+                    String time= timeft.format(now);
                     logger.info(E.getMessage());
-                    notifRepo.save( new Notification("Dropcatch: Domain with name: "+ domain+" not found. See log for further info."));
+                    notifRepo.save( new Notification("Dropcatch",time,"Domain with name: "+ domain+" not found. See log for further info."));
 
                 }
             }
 
-            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+            /*Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
             String token = dropCatchFeign.authorise(auth).getBody().getToken();
-            String bearer= "Bearer "+token;
+            String bearer= "Bearer "+token;*/
             ResponsePlaceBiddc pb = dropCatchFeign.placeBiddc(bearer,bids).getBody();
             List<BidPlacedFailure> failures = pb.getFailures();
             List<BidPlacedSuccess> successes= pb.getSuccesses();
@@ -402,8 +1323,11 @@ List<Integer> list= new ArrayList<>();
                 String domain = rm.get(auctionId);
 
                 succ.add(domain);
-                logger.info("Dropcatch: Instant Bid PLACED for domain: "+domain+ " at price: "+rb.get(s.getAuctionId()));
-                notifRepo.save(new Notification("Dropcatch: Instant Bid PLACED for domain: "+domain+ " at price: "+rb.get(s.getAuctionId())));
+                Date now= new Date();
+                String time= timeft.format(now);
+                telegram.sendAlert(-1001763199668l,1005l,"Dropcatch: Instant Bid PLACED for domain: "+domain+ " at price: "+rb.get(s.getAuctionId()));
+                logger.info("Instant Bid PLACED for domain: "+domain+ " at price: "+rb.get(s.getAuctionId()));
+                notifRepo.save(new Notification("Dropcatch",time,"Instant Bid PLACED for domain: "+domain+ " at price: "+rb.get(s.getAuctionId())));
                 String endTime = s.getEndTime().substring(0,s.getEndTime().length()-1);
                 if(m.containsKey(endTime))
                 {
@@ -422,8 +1346,6 @@ List<Integer> list= new ArrayList<>();
                 String time_left="";
                 try{
                     date = parser.parse(endTime);
-                    date.setHours(date.getHours()+5);
-                    date.setMinutes(date.getMinutes()+30);
                     time_left= relTime(date);
                     endTimeist=ft1.format(date);
                     // System.out.println(date);
@@ -450,9 +1372,9 @@ List<Integer> list= new ArrayList<>();
                     date= new Date();
                     String bidplacetime=ft1.format(date);
                     AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
-                    DBdetails db = new DBdetails(domain,auctionId,"Dropcatch",String.valueOf(s.getHighBid()), ad.getNumberOfBidders(), ad.getType(),"Bid Placed",endTime,endTimeist,bidplacetime,true);
-                    db.setTime_left(time_left);
-                    db.setAuctiontype(ad.getType());
+                    DBdetails db = new DBdetails(domain,auctionId,"Dropcatch",String.valueOf(s.getHighBid()), ad.getNumberOfBidders(),time_left, ad.getType(),"Bid Placed",endTime,endTimeist,bidplacetime,true);
+
+
                     repo.save(db);
                 }
             }
@@ -462,8 +1384,10 @@ List<Integer> list= new ArrayList<>();
                 BidPlacedFailure f=failures.get(i);
                 Long auctionId= f.getAuctionId();
                 String domain = rm.get(f.getAuctionId());
-                logger.info("Dropcatch: Instant Bid NOT PLACED for domain: "+domain+ " for price: "+rb.get(f.getAuctionId())+" with error: "+f.getError().getDescription());
-                notifRepo.save(new Notification("Dropcatch: Instant Bid NOT PLACED for domain: "+domain+ " for price: "+rb.get(f.getAuctionId())+" with error: "+f.getError().getDescription()));
+                Date now= new Date();
+                String time= timeft.format(now);
+                logger.info("Instant Bid NOT PLACED for domain: "+domain+ " for price: "+rb.get(f.getAuctionId())+" with error: "+f.getError().getDescription());
+                notifRepo.save(new Notification("Dropcatch",time,"Instant Bid NOT PLACED for domain: "+domain+ " for price: "+rb.get(f.getAuctionId())+" with error: "+f.getError().getDescription()));
                 Optional<DBdetails> op= Optional.ofNullable(repo.findByAuctionId(auctionId));
                 if(op.isPresent())
                 {
@@ -473,21 +1397,22 @@ List<Integer> list= new ArrayList<>();
                 }
 
             }
-            for (Map.Entry<String, List<String>> set : m.entrySet())
+           /* for (Map.Entry<String, List<String>> set : m.entrySet())
             {
                 String endTime=set.getKey();
                 Date date=new Date();
                 try{
                     date = parser.parse(endTime);
-                    date.setHours(date.getHours()+6);
-                    date.setMinutes(date.getMinutes()+15);
+
+                    date.setMinutes(date.getMinutes()+45);
 
                     // System.out.println(date);
                 }
                 catch(ParseException p)
                 {logger.info(p.getMessage());}
-                taskScheduler.schedule(new GetResultdc(set.getValue()),date);
-            }
+               ScheduledFuture task= taskScheduler.schedule(new GetResultdc(),date);
+
+            }*/
             l.add(successes.size());
             l.add(ddlist.size());
             return l;
@@ -505,69 +1430,86 @@ List<Integer> list= new ArrayList<>();
     }
 
         @PostMapping("/fetchdetailsdc")
-        List<DBdetails> fetchDetails(@RequestBody List<String> list)
+        List<DBdetails> fetchDetails(@RequestBody FetchReq body)
         {
+            List<String> list=body.getDomains();
+            Boolean watch= body.getWatch();
             List<DBdetails> l= new ArrayList<>();
-            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
-            MapWrap mw= mapwraprepo.getReferenceById(1);
-            Map<String,Long> map = mw.getMap();
+
+//            MapWrap mw= mapwraprepo.getReferenceById(1);
+//            Map<String,Long> map = mw.getMap();
             int n= list.size();
-            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-            String token = dropCatchFeign.authorise(auth).getBody().getToken();
-            String bearer= "Bearer "+token;
+//            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+//            String token = dropCatchFeign.authorise(auth).getBody().getToken();
+//            String bearer= "Bearer "+token;
             for(int i=0;i<n;i++)
             {
                 String domain= list.get(i).toLowerCase();
                 try {
-                    Long auctionId = map.get(domain);
-                    AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
-                    Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(auctionId));
-                    DBdetails db = null;
-                    String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
-                    Date date = new Date();
-                    String endTimeist = "";
-                    String time_left = "";
-                    try {
-                        date = parser.parse(endTime);
-                        date.setHours(date.getHours() + 5);
-                        date.setMinutes(date.getMinutes() + 30);
-                        endTimeist = ft1.format(date);
-                        time_left = relTime(date);
-                        // System.out.println(date);
-                    } catch (ParseException p) {
-                        logger.info(p.getMessage());
-                        continue;
-                    }
+                   // Long auctionId = map.get(domain);
+                    AuctionDetailDC ad = dropCatchFeign.getAuctionDetail1(bearer, domain,true).getBody().getItems().get(0);
+                    if(ad!=null&&ad.getName().equalsIgnoreCase(domain)) {
+                        long auctionId= ad.getAuctionId();
+                        Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(auctionId));
+                        DBdetails db = null;
+                        String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                        Date date = new Date();
+                        String endTimeist = "";
+                        String time_left = "";
+                        try {
+                            date = parser.parse(endTime);
+                            endTimeist = ft1.format(date);
+                            time_left = relTime(date);
+                        } catch (ParseException p) {
+                            logger.info(p.getMessage());
+                            continue;
+                        }
 
-                    if (op.isPresent()) {
-                        db = op.get();
-                        db.setCurrbid(String.valueOf(ad.getHighBid()));
-                        db.setBidders(ad.getNumberOfBidders());
-                        //db.setTime_left(ad.);
-                        //db.setAge(aj.getAge());
-                        //db.setEstibot(aj.getEstibot_appraisal());
+                        if (op.isPresent()) {
+                            db = op.get();
+                            db.setCurrbid(String.valueOf(ad.getHighBid()));
+                            db.setBidders(ad.getNumberOfBidders());
+                            db.setEndTimepst(endTime);
+                            db.setEndTimeist(endTimeist);
+                            db.setTime_left(time_left);
+                            db.setFetched(true);
 
-                       // db.setAuctiontype(ad.getType());
-                        db.setEndTimepst(endTime);
-                        db.setEndTimeist(endTimeist);
-                        db.setTime_left(time_left);
-                        db.setFetched(true);
+                        } else {
+                            //AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                            db = new DBdetails(domain, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), ad.getNumberOfBidders(), time_left, ad.getType(), "", endTime, endTimeist, "", false);
+                            db.setFetched(true);
+
+                        }
+                        if (watch)
+                        { db.setWatchlist(true);
+                            String text = "Dropcatch\n\n" + domain + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + ad.getHighBid()// + "\n \nGDV: "// + gdv
+                                    +" \n\nLink: " +"https://www.dropcatch.com/domain/" + domain ;
+                            List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid","b dc"+" "+auctionId+" "+domain+" "+ad.getHighBid()));
+                            row.add(new InlineKeyboardButton("Remove","rw dc "+auctionId+" "+domain));
+                            List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                    ,text,inlineKeyboardMarkup));}
                         repo.save(db);
-                    } else {
-                        //AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
-                        db = new DBdetails(domain, auctionId, "Dropcatch", String.valueOf(ad.getHighBid()), ad.getNumberOfBidders(), ad.getType(), "", endTime, endTimeist, "", false);
-                        db.setTime_left(time_left);
-                        db.setAuctiontype(ad.getType());
-                        db.setFetched(true);
-                        repo.save(db);
+                        l.add(db);
                     }
+                    else
+                    {
+                        Date now= new Date();
+                        String time = timeft.format(now);
+                        notifRepo.save(new Notification("Dropcatch",time,"Domain "+domain+" not found"));
+                        logger.info(time+": Domain "+domain+" not found");
 
-                    l.add(db);
+                    }
                 }
                 catch(Exception e)
                 {
-                    logger.info(domain+" "+e.getMessage());
+                    Date now= new Date();
+                    String time = timeft.format(now);
+                    notifRepo.save(new Notification("Dropcatch",time,"Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage()));
+                    logger.info(time+": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
                 }
             }
             return l;
@@ -657,98 +1599,109 @@ List<Integer> list= new ArrayList<>();
 
         }
 
-        public class GetResultdc implements Runnable
-        {
-            List<String> list;
+        public class GetResultdc implements Runnable {
+            String domain;
+            Long auctionId;
 
-            GetResultdc(List<String> list)
-            {
-                this.list= list;
+            public GetResultdc(String domain, Long auctionId) {
+                this.domain = domain;
+                this.auctionId = auctionId;
             }
 
             @Override
-            public void run()
-            {
-                Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+            public void run() {
+                /*Authorise auth = new Authorise("babyyoda:hawk", ":pvN|?'Sb4.Ah2N0t+7M");
                 String token = dropCatchFeign.authorise(auth).getBody().getToken();
-                String bearer= "Bearer "+token;
-                List<String> succ=new ArrayList<>();
-                int n= list.size();
-                for(int i=0;i<n;i++) {
-                    try {
-                        String domain = list.get(i);
-                        DBdetails db = repo.findByDomain(domain);
-                        AuctionResultdc r = dropCatchFeign.getAuctionResult(bearer, domain, 10).getBody().getItems().get(0);
-                        String domain1 = r.getDomain().toLowerCase();
-                        if (domain.equals(domain1))
-                        {
-                            if (r.getResult().equals("AuctionWon"))
-                                db.setResult("Won");
-                            else db.setResult("Loss");
-                        }
-                        else
-                        {
-                            succ.add(domain);
-                        }
+                String bearer = "Bearer " + token;*/
 
+                try {
 
-                        if (succ.size() >= 1) {
-                            Date d = new Date();
-                            d.setMinutes(d.getMinutes() + 30);
-                            taskScheduler.schedule(new GetResultdc(succ), d);
+                    DBdetails db = repo.findByDomain(domain);
+                    AuctionResultdc r = dropCatchFeign.getAuctionResult(bearer, domain, 10).getBody().getItems().get(0);
+                    String domain1 = r.getDomain().toLowerCase();
+                    if (domain.equals(domain1)) {
+                        if (r.getResult().equals("AuctionWon")) {
+                            telegram.sendAlert(-1001763199668l,842l, "Dropcatch: Yippee!! Won auction of " + domain + " at price: " + r.getAmount());
+                            db.setResult("Won");
+                        } else db.setResult("Loss");
+                        {
+                            telegram.sendAlert(-1001763199668l,841l, "Dropcatch: Hush!! Lost auction of " + domain + " at price: " + r.getAmount());
+                            repo.save(db);
                         }
+                        deleteTaskMap(domain);
+                    } else {
+                        Date d = new Date();
+                        d.setMinutes(d.getMinutes() + 30);
+                        ScheduledFuture res = taskScheduler.schedule(new GetResultdc(domain, db.getAuctionId()), d);
+                        updateTaskMap(domain, res, "gr");
+
                     }
-                      catch(Exception e)
-                      {
-                          logger.info("Inside Get Result Scheduled Service: "+e.getMessage());
-                      }
+
+
+                } catch (Exception e) {
+                    logger.info("Inside Get Result Scheduled Service: " + e.getMessage());
                 }
 
+
             }
-
         }
-
-        @GetMapping("/startlivedc")
+    @Scheduled(cron = "0 00 23 ? * *", zone = "IST")
+    @GetMapping("/startlivedc")
         ResponseAuctionList startlivedc()
         {
+            int l=0;
             logger.info("Starting Live Service");
-            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
-            String token = dropCatchFeign.authorise(auth).getBody().getToken();
-            String bearer= "Bearer "+token;
-            liveDCrepo.deleteAll();
-            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            Date date= new Date();
-            date.setMinutes(date.getMinutes()-205);
-            String end= parser.format(date)+"Z";
-            ResponseEntity<ResponseAuctionList> o = dropCatchFeign.getAuctionDetailslive(bearer, 350, true, "Dropped", "EndTimeAsc",end,true);
-           // LiveMap lm= liveMaprepo.findById(1).get();
-            LiveMap lm=null;
-
-            if(liveMaprepo.findById(1).isPresent())
-                lm = liveMaprepo.findById(1).get();
-            else
+            Optional<LiveMap> o1= liveMaprepo.findById(3);
+            LiveMap lm;
+            if(o1.isEmpty())
             {
-                lm= new LiveMap();
+                lm= new LiveMap(3);
                 liveMaprepo.save(lm);
+                lm=liveMaprepo.findById(3).get();
             }
-            Map<Long,String> map= lm.getMapdc();
-            map.clear();
+            else
+                lm=o1.get();
+            //liveDCrepo.deleteAll();
+            Date date= new Date();
+           // date.setMinutes(date.getMinutes()-205);
+            date.setHours(date.getHours()+2);
+            String end= parser.format(date)+"Z";
+            ResponseEntity<ResponseAuctionList> o = dropCatchFeign.getAuctionDetailslive1(bearer, 250, true, "EndTimeAsc",end,true);
+           // LiveMap lm= liveMaprepo.findById(1).get();
+           // map.clear();
+            map=lm.getMapdc();
             ResponseAuctionList rl= o.getBody();
             List<AuctionDetailDC> items = rl.getItems();
             for(int i=0;i<items.size();i++)
             {
                 AuctionDetailDC item= items.get(i);
+                l=Math.max(l,item.getName().length());
+                item.setInitialList(true);
                 map.put(item.getAuctionId(),item.getName().toLowerCase());
                 liveDCrepo.save(item);
             }
-            liveMaprepo.save(lm);
 
-            ScheduledFuture scheduledFuture=taskScheduler.scheduleWithFixedDelay(new DetectLivedc(end),20000);
+            ScheduledFuture scheduledFuture=taskScheduler.scheduleWithFixedDelay(new DetectLivedc(end),60000);
             Date d= new Date();
             d.setMinutes(d.getMinutes()+130);
             taskScheduler.schedule(new Stoplivedc(scheduledFuture),d);
+            try {
+                sendInitialList(l);
+            }
+            catch (Exception e)
+            {
+                logger.info(e.getMessage());
+            }
             logger.info("Started live service");
             return rl;
+        }
+
+        @GetMapping("/getdclivee")
+        ResponseAuctionList getListLivee()
+        {
+            ResponseEntity<ResponseAuctionList> rl= dropCatchFeign.getAuctionDetailslive1(bearer,350,true,"EndTimeAsc","2023-05-25T20:00:00Z",true);
+
+            return rl.getBody();
         }
 @Autowired
     Telegram telegram;
@@ -763,9 +1716,126 @@ List<Integer> list= new ArrayList<>();
         public void run()
         {
             scheduledFuture.cancel(false);
+            map.clear();
+            int l=0;
+            Optional<LiveMap> o= liveMaprepo.findById(3);
+            LiveMap lm;
+            if(o.isEmpty())
+            {
+                lm= new LiveMap(3);
+            }
+            else
+                lm=o.get();
+
+            Map<Long,String> map1= lm.getMapdc();
+            map1.clear();
+            liveDCrepo.deleteAll();
+            Date date= new Date();
+            // date.setMinutes(date.getMinutes()-205);
+            date.setHours(date.getHours()+24);
+            String end= parser.format(date)+"Z";
+            ResponseEntity<ResponseAuctionList> o1 = dropCatchFeign.getAuctionDetailslive1(bearer, 250, true, "EndTimeAsc",end,true);
+            // LiveMap lm= liveMaprepo.findById(1).get();
+            ResponseAuctionList rl= o1.getBody();
+            List<AuctionDetailDC> items = rl.getItems();
+            for(int i=0;i<items.size();i++)
+            {
+                AuctionDetailDC item= items.get(i);
+                l=Math.max(l,item.getName().length());
+                item.setEndList(true);
+                map1.put(item.getAuctionId(),item.getName().toLowerCase());
+                liveDCrepo.save(item);
+            }
+
+            liveMaprepo.save(lm);
+            try {
+                sendEndList(l);
+            }
+            catch (Exception e)
+            {
+                logger.info(e.getMessage());
+            }
         }
     }
-        public class DetectLivedc implements Runnable
+
+
+    void sendInitialList(int n)
+    {
+        //int n=32;
+        //           currbid,separators,space around separators
+        int t= n+    6    +  1   +     2;
+        int d= 4096/t;
+        d=d-6;
+        String s=String.format("| %-"+(t-4)+"s |%n", "Dropcatch Initial List");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        s=s+ String.format("%-"+n+"s | %6s%n","Domain","Price");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        List<AuctionDetailDC> list=liveDCrepo.findByInitialListTrue();
+        int l=list.size();
+        int j=0;
+        while(l>0) {
+            for (int i = 0; i < l && i < d; i++) {
+                AuctionDetailDC lnc = list.get(j);
+                j++;
+                s = s + String.format("%-"+n+"s | %6d%n", lnc.getName(), lnc.getHighBid());
+
+
+            }
+            // System.out.println(s);
+            telegram.sendAlert(-1001763199668l,845l,"<pre>"+s+"</pre>","HTML");
+            l=l-d;
+            s="";
+        }
+
+    }
+
+    void sendEndList(int n)
+    {
+        int t= n+    6    +  1   +     2;
+        int d= 4096/t;
+        d=d-6;
+        String s=String.format("| %-"+(t-4)+"s |%n", "Dropcatch Next Day List");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        s=s+ String.format("%-"+n+"s | %6s%n","Domain","Price");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        List<AuctionDetailDC> list=liveDCrepo.findByEndListTrue();
+        int l=list.size();
+        int j=0;
+        while(l>0) {
+            for (int i = 0; i < l && i < d; i++) {
+                AuctionDetailDC lnc = list.get(j);
+                j++;
+                s = s + String.format("%-"+n+"s | %6d%n", lnc.getName(), lnc.getHighBid());
+
+
+            }
+            // System.out.println(s);
+            telegram.sendAlert(-1001763199668l,845l,"<pre>"+s+"</pre>","HTML");
+            l=l-d;
+            s="";
+        }
+
+    }
+
+
+
+    public class DetectLivedc implements Runnable
         {
 
             String endTime;
@@ -780,14 +1850,12 @@ List<Integer> list= new ArrayList<>();
             {
 
                 logger.info("Live detect service running");
-                Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+               /* Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
                 String token = dropCatchFeign.authorise(auth).getBody().getToken();
-                String bearer= "Bearer "+token;
-                SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-                SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm");
-                LiveMap lm= liveMaprepo.findById(1).get();
-                Map<Long,String> map= lm.getMapdc();
-                List<AuctionDetailDC> items = dropCatchFeign.getAuctionDetailslive(bearer,350,true,"Dropped","EndTimeAsc",endTime,true).getBody().getItems();
+                String bearer= "Bearer "+token;*/
+
+
+                List<AuctionDetailDC> items = dropCatchFeign.getAuctionDetailslive1(bearer,350,true,"EndTimeAsc",endTime,true).getBody().getItems();
                 for(int i=0;i< items.size();i++)
                 {
                     try{
@@ -803,8 +1871,6 @@ List<Integer> list= new ArrayList<>();
                         String relTime="";
                         try{
                             end=parser.parse(endTime);
-                            end.setHours(end.getHours()+5);
-                            end.setMinutes(end.getMinutes()+30);
                             relTime=relTimelive(end);
                         }
                         catch(ParseException p)
@@ -815,7 +1881,17 @@ List<Integer> list= new ArrayList<>();
                         String addTime= ft1.format(now);
                         Long price= item.getHighBid();
                         String text = "Dropcatch Live Detect \n \n" + domain + "\n \nTime Left: " + relTime + "\nCurrent Bid: " + price +  " \n\nLink: " + "https://www.dropcatch.com/domain/" + domain;
-                        telegram.sendAlert(-1001706842871L,text);
+                       // telegram.sendAlert(-1001706842871L,text);
+                        List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                        row.add(new InlineKeyboardButton("Bid","b"+" dc "+auctionId+" "+domain+" "+price));
+                        row.add(new InlineKeyboardButton("Watch","w dc "+auctionId+" "+domain));
+                        row.add(new InlineKeyboardButton("Track","t dc "+auctionId+" "+domain));
+
+                        List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                        rows.add(row);
+                        InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                        Object obj = telegram.sendKeyboard(new SendMessage(//-1001706842871L
+                                -1001763199668l,1018l ,text,inlineKeyboardMarkup));
                         item.setAddTime(addTime);
                         item.setTimeLeft(relTime);
                         item.setLive(true);
@@ -826,37 +1902,359 @@ List<Integer> list= new ArrayList<>();
                         logger.info(e.getMessage());
                     }
                 }
-                liveMaprepo.save(lm);
+
             }
         }
 
         @GetMapping("/tryschedule")
         Boolean trysc()
         {
-            Date now = new Date();
-            now.setSeconds(now.getSeconds()+30);
-            taskScheduler.schedule(new Try(),now);
+            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+            String token = dropCatchFeign1.authorise(auth).getBody().getToken();
+            String bearer= "Bearer "+token;
+            Date now= new Date();
+            now.setMinutes(now.getMinutes()+1);
+            Try try1= new Try(bearer);
+            logger.info("1");
+           ScheduledFuture scheduledFuture= taskScheduler.scheduleAtFixedRate(try1,now,120000);
+           try1.setScheduledFuture(scheduledFuture);
             return true;
         }
 
         public class Try implements Runnable
         {
+            ScheduledFuture scheduledFuture;
+
+            String bearer;
+
+            public Try(String bearer) {
+                this.bearer = bearer;
+            }
+
+            public void setScheduledFuture(ScheduledFuture scheduledFuture) {
+                this.scheduledFuture = scheduledFuture;
+            }
 
             @Override
             public void run() {
-                MapWrap mw = mapwraprepo.findById(1).get();
-                Map<Long,String> rm = mw.getRm();
-                logger.info(rm.get(3479995l));
+                try {
+                    AuctionDetailDC dc= dropCatchFeign.getAuctionDetail(bearer,3615601).getBody();
+                }
+                catch(Exception e)
+                {
+                    logger.info(e.getMessage());
+                    scheduledFuture.cancel(false);
+                }
             }
         }
 
-    public class PlaceBiddc implements Runnable{
+        public class CheckOutBid implements Runnable
+        {
+            String domain;
+            Long auctionId;
+            Long maxbid,price;
+
+            ScheduledFuture scheduledFuture;
+
+            public void setScheduledFuture(ScheduledFuture scheduledFuture) {
+                this.scheduledFuture = scheduledFuture;
+            }
+
+            public CheckOutBid(String domain, Long auctionId, Long maxbid, Long price)
+            {
+                this.domain = domain;
+                this.auctionId = auctionId;
+                this.maxbid = maxbid;
+                this.price=price;
+            }
+
+            @Override
+            public void run() {
+                /*Authorise auth = new Authorise("babyyoda:hawk", ":pvN|?'Sb4.Ah2N0t+7M");
+                String token = dropCatchFeign.authorise(auth).getBody().getToken();
+                String bearer = "Bearer " + token;*/
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                if (ad!=null)
+                {
+                    Boolean winning = ad.isWinning();
+                    Long minbid = ad.getMinimumNextBid();
+
+
+                    if (!winning)
+                    {
+                        if (ad.getHighBid() > maxbid)
+                        {
+                            //notify
+                            String endTime = ad.getEndTime().substring(0,ad.getEndTime().length()-1);
+                            Date date= null;
+                            String endTimeist="";
+                            String time_left="";
+                            try
+                            {
+                                date = parser.parse(endTime);
+                                time_left=relTime(date);
+                                endTimeist=ft1.format(date);
+                                // System.out.println(date);
+                            }
+                            catch(ParseException p)
+                            {
+                                logger.info(p.getMessage());}
+                            DBdetails db= repo.findByPlatformAndAuctionId("Dropcatch",auctionId);
+                            db.setResult("Outbid");
+                            db.setEndTimepst(endTime);
+                            db.setTime_left(time_left);
+                            db.setEndTimeist(endTimeist);
+                            db.setCurrbid(String.valueOf(ad.getHighBid()));
+                            repo.save(db);
+                            String text= "Dropcatch Auction OUTBID \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+ad.getHighBid()+"\nMin Next Bid: "+ minbid+"\nOur Max Bid: "+maxbid+" \n\nGDV: "+db.getGdv()+" \n\nLink: "+"https://www.dropcatch.com/domain/" + domain;
+                            //-1001814695777L
+                            List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                            row.add(new InlineKeyboardButton("Bid","b dc "+ad.getAuctionId()+" "+domain+" "+ad.getHighBid()));
+                            row.add(new InlineKeyboardButton("Watch","w dc "+ad.getAuctionId()+" "+domain));
+                            row.add(new InlineKeyboardButton("Track","t dc "+ad.getAuctionId()+" "+domain));
+
+                            List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                            rows.add(row);
+                            InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                            Object obj = telegram.sendKeyboard(new SendMessage(-1001866615838L
+                                    ,text,inlineKeyboardMarkup));
+                            Date now= new Date();
+                            String time= timeft.format(now);
+                            notifRepo.save(new Notification("Dropcatch",time,"Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + minbid ));
+                            logger.info(time+" : Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + minbid );
+                            date.setMinutes(date.getMinutes()+30);
+                            ScheduledFuture sh=taskScheduler.schedule(new GetResultdc(domain,auctionId),date);
+                            updateTaskMap(domain,sh,"gr");
+
+                        } else
+                        {
+                            String endTime = ad.getEndTime().substring(0, ad.getEndTime().length() - 1);
+                            Date date = null;
+                            try {
+                                date = parser.parse(endTime);
+                            } catch (ParseException p) {
+                                logger.info(p.getMessage());
+                            }
+                            date.setSeconds(date.getSeconds() - 15);
+                           ScheduledFuture place= taskScheduler.schedule(new PlaceBiddc1(domain, auctionId, maxbid, endTime), date);
+                            updateTaskMap(domain,place,"pb");
+
+                            DBdetails db = repo.findByPlatformAndAuctionId("Dropcatch",auctionId);
+                            db.setResult("Bid Placed And Scheduled");
+                            repo.save(db);
+                            Date now= new Date();
+                            String time= timeft.format(now);
+                            String bidist= ft1.format(date);
+                            telegram.sendAlert(-1001763199668l,1004l,"Dropcatch: Outbid, Bid SCHEDULED for " + domain + " at price " + minbid + " at time " + bidist);
+                            notifRepo.save(new Notification("Dropcatch",time,"Outbid, Bid SCHEDULED for " + domain + " at price " + minbid + " at time " + bidist));
+                            logger.info(time+": Outbid, Bid SCHEDULED for " + domain + " at price " + minbid + " time " + bidist+" i.e. "+bidist);
+
+                        }
+                        scheduledFuture.cancel(true);
+                    }
+                }
+                else
+                {
+                    DBdetails db = repo.findByAuctionId(auctionId);
+                    db.setResult("Won");
+                    repo.save(db);
+                    deleteTaskMap(domain);
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    telegram.sendAlert(-1001763199668l,842l,"Dropcatch: Yippee!! Won auction of "+domain+" at price: "+price);
+                    notifRepo.save(new Notification("Dropcatch",time,"Yippee!! Won auction of "+domain+" at price: "+price));
+                    logger.info(time+": Won auction of "+domain+" at price: "+price);
+                    AuctionResultdc r = dropCatchFeign.getAuctionResult(bearer, domain, 10).getBody().getItems().get(0);
+                    String domain1 = r.getDomain().toLowerCase();
+                    if (domain.equalsIgnoreCase(domain1))
+                    {
+                        if (r.getResult().equals("AuctionWon"))
+                            //db.setResult("Won");
+                        telegram.sendAlert(-834797664L,r.getResult());
+                        //else
+                           // db.setResult("Loss");
+                    }
+
+                }
+            }
+
+        }
+
+        public class PlaceBiddc1 implements Runnable
+        {
+            String domain;
+            Long auctionId;
+            Long maxbid;
+            String timeId;
+
+            public PlaceBiddc1(String domain, Long auctionId, Long maxbid, String timeId)
+            {
+                this.domain = domain;
+                this.auctionId = auctionId;
+                this.maxbid = maxbid;
+                this.timeId = timeId;
+            }
+
+            @Override
+            public void run()
+            {
+                /*Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+                String token = dropCatchFeign.authorise(auth).getBody().getToken();
+                String bearer= "Bearer "+token;
+*/
+                AuctionDetailDC ad = dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+
+                String endTime= ad.getEndTime().substring(0,ad.getEndTime().length()-1);
+                Long minbid=ad.getMinimumNextBid();
+                if(ad.getHighBid()>maxbid)
+                {
+                    //notify
+                    Date date= null;
+                    String endTimeist="";
+                    String time_left="";
+                    try
+                    {
+                        date = parser.parse(endTime);
+                        time_left=relTime(date);
+                        endTimeist=ft1.format(date);
+                        // System.out.println(date);
+                    }
+                    catch(ParseException p)
+                    {
+                        logger.info(p.getMessage());}
+                    DBdetails db= repo.findByPlatformAndAuctionId("Dropcatch",auctionId);
+                    db.setResult("Outbid");
+                    db.setEndTimepst(endTime);
+                    db.setTime_left(time_left);
+                    db.setEndTimeist(endTimeist);
+                    db.setCurrbid(String.valueOf(ad.getHighBid()));
+                    repo.save(db);
+                    String text= "Dropcatch Auction OUTBID \n \n"+domain+"\n \nTime Left: "+time_left+"\nCurrent Bid: "+ad.getHighBid()+"\nMin Next Bid: "+ minbid+"\nOur Max Bid: "+maxbid+" \n\nGDV: "+db.getGdv()+" \n\nLink: "+"https://www.dropcatch.com/domain/" + domain;
+                    //-1001814695777L
+                    List<InlineKeyboardButton> row= new ArrayList<InlineKeyboardButton>();
+                    row.add(new InlineKeyboardButton("Bid","b dc "+ad.getAuctionId()+" "+domain+" "+ad.getHighBid()));
+                    row.add(new InlineKeyboardButton("Watch","w dc "+ad.getAuctionId()+" "+domain));
+                    row.add(new InlineKeyboardButton("Track","t dc "+ad.getAuctionId()+" "+domain));
+
+                    List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+                    rows.add(row);
+                    InlineKeyboardMarkup inlineKeyboardMarkup= new InlineKeyboardMarkup(rows);
+                    Object obj = telegram.sendKeyboard(new SendMessage(-1001866615838L
+                            ,text,inlineKeyboardMarkup));
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    notifRepo.save(new Notification("Dropcatch",time,"Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + minbid ));
+                    logger.info(time+" : Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + minbid );
+                    date.setMinutes(date.getMinutes()+30);
+                   ScheduledFuture res= taskScheduler.schedule(new GetResultdc(domain,auctionId),date);
+                    updateTaskMap(domain,res,"gr");
+
+                }
+                else
+                {
+                    if (timeId.equals(endTime))
+                    {
+
+
+                            Biddc biddc = new Biddc(auctionId, minbid);
+                            List<Biddc> bids= new ArrayList<>();
+                            bids.add(biddc);
+                            ResponseEntity<ResponsePlaceBiddc> re= dropCatchFeign.placeBiddc(bearer,bids);
+                            ResponsePlaceBiddc rpb= re.getBody();
+                            List<BidPlacedFailure> failures = rpb.getFailures();
+                            List<BidPlacedSuccess> successes= rpb.getSuccesses();
+
+                            if(successes.size()==1)
+                            {
+                                BidPlacedSuccess s= successes.get(0);
+                                Date now = new Date();
+                                String time= timeft.format(now);
+                                telegram.sendAlert(-1001763199668l,1004l,"Dropcatch: Scheduled Bid PLACED for domain: "+domain+ " at price: "+minbid);
+                                logger.info(time+": Scheduled Bid PLACED for domain: "+domain+ " at price: "+minbid);
+                                notifRepo.save(new Notification("Dropcatch",time,"Scheduled Bid PLACED for domain: "+domain+ " at price: "+minbid));
+
+                                now.setSeconds(now.getSeconds()+30);
+                                CheckOutBid checkOutBid= new CheckOutBid(domain,auctionId,maxbid,minbid);
+                                ScheduledFuture scheduledFuture=taskScheduler.scheduleAtFixedRate(checkOutBid,now,40000);
+                                checkOutBid.setScheduledFuture(scheduledFuture);
+                                updateTaskMap(domain,scheduledFuture,"co");
+
+                                String endTime1 = s.getEndTime().substring(0,s.getEndTime().length()-1);
+                                Date date= null;
+                                String endTimeist="";
+                                String time_left="";
+                                try
+                                {
+                                    date = parser.parse(endTime1);
+                                    time_left=relTime(date);
+                                    endTimeist=ft1.format(date);
+                                    // System.out.println(date);
+                                }
+                                catch(ParseException p)
+                                {
+                                    logger.info(p.getMessage());}
+                                DBdetails db= repo.findByAuctionId(auctionId);
+                                db.setResult("Bid Placed");
+                                db.setIsBidPlaced(true);
+                                db.setEndTimepst(endTime);
+                                db.setTime_left(time_left);
+                                db.setEndTimeist(endTimeist);
+                                db.setCurrbid(String.valueOf(s.getHighBid()));
+                                repo.save(db);
+                            }
+                            else
+                            {
+                                BidPlacedFailure f= failures.get(0);
+                                Date now = new Date();
+                                String time= timeft.format(now);
+                                logger.info(time+": Scheduled Bid NOT PLACED for domain: "+domain+ " for price: "+minbid+" with error: "+f.getError().getDescription());
+                                notifRepo.save(new Notification("Dropcatch",time,"Scheduled Bid NOT PLACED for domain: "+domain+ " for price: "+minbid+" with error: "+f.getError().getDescription()));
+                                Optional<DBdetails> op= Optional.ofNullable(repo.findByAuctionId(auctionId));
+                                if(op.isPresent())
+                                {
+                                    DBdetails db= op.get();
+                                    db.setResult("Bid Not Placed");
+                                    repo.save(db);
+                                }
+                                deleteTaskMap(domain);
+                            }
+
+                            //taskScheduler.schedule(new CheckOutbid(),)
+
+                    }
+                    else
+                    {
+                        Date date = new Date();
+                        try {
+                            date = parser.parse(endTime);
+                        } catch (ParseException p)
+                        {
+                            logger.info(p.getMessage());
+                        }
+                        String endTimeist= ft1.format(date);
+                        date.setSeconds(date.getSeconds() - 15);
+                        Date now= new Date();
+                        String time=timeft.format(now);
+                       ScheduledFuture place= taskScheduler.schedule(new PlaceBiddc1(domain, auctionId, maxbid, endTime), date);
+                        updateTaskMap(domain,place,"pb");
+                        telegram.sendAlert(-1001763199668l,1004l,"Prechecking BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+endTimeist);
+
+                        notifRepo.save(new Notification("Dropcatch",time,"Prechecking BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+endTimeist));
+                        logger.info(time+": Prechecking BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+endTimeist+" i.e. "+date);
+
+                    }
+                }
+
+            }
+        }
+
+    public class PlaceBiddc implements Runnable
+    {
 
         List<Biddc> bids;
-        //Map<Long,String> rm;
         Map<Long,Long> rb;
-       // String bearer;
-        public PlaceBiddc(List<Biddc> bids) {
+        public PlaceBiddc(List<Biddc> bids)
+        {
             this.bids = bids;
             this.rb= new HashMap<Long,Long>();
             //this.rm=rm;
@@ -875,18 +2273,16 @@ List<Integer> list= new ArrayList<>();
             List<String> succ= new ArrayList<>();
             MapWrap mw = mapwraprepo.findById(1).get();
             Map<Long,String> rm = mw.getRm();
-            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
-            Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
+           /* Authorise auth = new Authorise("babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M");
             String token = dropCatchFeign.authorise(auth).getBody().getToken();
-            token= "Bearer "+token;
-
+            String bearer= "Bearer "+token;
+*/
            // Long id= bids.get(0).getAuctionId();
             //int num1 = Math.toIntExact(id);
            // AuctionDetailDC ad= dropCatchFeign.getAuctionDetail1(token, num1).getBody();
             //logger.info(ad.getName());
 
-           ResponseEntity<ResponsePlaceBiddc> re= dropCatchFeign.placeBiddc(token,bids);
+           ResponseEntity<ResponsePlaceBiddc> re= dropCatchFeign.placeBiddc(bearer,bids);
            ResponsePlaceBiddc rpb= re.getBody();
            List<BidPlacedFailure> failures = rpb.getFailures();
            List<BidPlacedSuccess> successes= rpb.getSuccesses();
@@ -921,8 +2317,6 @@ List<Integer> list= new ArrayList<>();
                 String time_left="";
                 try{
                     date = parser.parse(endTime);
-                    date.setHours(date.getHours()+5);
-                    date.setMinutes(date.getMinutes()+30);
                     time_left=relTime(date);
                     endTimeist=ft1.format(date);
                    // System.out.println(date);
@@ -938,6 +2332,7 @@ List<Integer> list= new ArrayList<>();
                     db.setEndTimepst(endTime);
                     db.setTime_left(time_left);
                     db.setEndTimeist(endTimeist);
+                    db.setCurrbid(String.valueOf(s.getHighBid()));
                     repo.save(db);
                 }
                 else
@@ -945,7 +2340,7 @@ List<Integer> list= new ArrayList<>();
                     date = new Date();
                    String bidplacetime=ft1.format(date);
                     AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
-                    DBdetails db = new DBdetails(domain,auctionId,"Dropcatch",String.valueOf(s.getHighBid()), ad.getNumberOfBidders(), ad.getType(),"Bid Placed",endTime,endTimeist,bidplacetime,true);
+                    DBdetails db = new DBdetails(domain,auctionId,"Dropcatch",String.valueOf(s.getHighBid()), ad.getNumberOfBidders(), time_left,ad.getType(),"Bid Placed",endTime,endTimeist,bidplacetime,true);
                     db.setTime_left(time_left);
                     db.setAuctiontype(ad.getType());
                     repo.save(db);

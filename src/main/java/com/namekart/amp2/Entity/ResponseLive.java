@@ -6,6 +6,8 @@ public class ResponseLive {
     String status;
     List<LiveDetails> auction_list;
 
+
+
     public ResponseLive() {
     }
 

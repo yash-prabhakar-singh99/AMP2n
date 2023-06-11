@@ -11,6 +11,42 @@ public class LiveDetails {
     @Id
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     Long id;
+    Integer EST;
+
+    public Integer getEST() {
+        return EST;
+    }
+
+    public void setEST(Integer EST) {
+        this.EST = EST;
+    }
+    Boolean initialList,endList;
+
+    public Boolean getInitialList() {
+        return initialList;
+    }
+
+    public void setInitialList(Boolean initialList) {
+        this.initialList = initialList;
+    }
+
+    public Boolean getEndList() {
+        return endList;
+    }
+
+    public void setEndList(Boolean endList) {
+        this.endList = endList;
+    }
+
+    Integer gdv;
+
+    public Integer getGdv() {
+        return gdv;
+    }
+
+    public void setGdv(Integer gdv) {
+        this.gdv = gdv;
+    }
 
     String time_left;
 

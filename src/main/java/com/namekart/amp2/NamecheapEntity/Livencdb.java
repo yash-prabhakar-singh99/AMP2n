@@ -12,6 +12,36 @@ public class Livencdb {
     Integer idd;
     String id;
     String addtime;
+    Boolean endList;
+
+    public Boolean getInitialList() {
+        return initialList;
+    }
+
+    public void setInitialList(Boolean initialList) {
+        this.initialList = initialList;
+    }
+
+    Boolean initialList;
+
+
+    public Boolean getEndList() {
+        return endList;
+    }
+
+    public void setEndList(Boolean endList) {
+        this.endList = endList;
+    }
+
+    Integer gdv;
+
+    public Integer getGdv() {
+        return gdv;
+    }
+
+    public void setGdv(Integer gdv) {
+        this.gdv = gdv;
+    }
 
     public String getAddtime() {
         return addtime;

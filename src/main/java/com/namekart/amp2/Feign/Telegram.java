@@ -17,9 +17,14 @@ public interface Telegram {
     @GetMapping("/sendMessage")
     Object sendAlert(@RequestParam Long chat_id, @RequestParam String text);
 
+    @GetMapping("/sendMessage")
+    Object sendAlert(@RequestParam Long chat_id,@RequestParam Long message_thread_id, @RequestParam String text);
+    @GetMapping("/sendMessage")
+    Object sendAlert(@RequestParam Long chat_id, @RequestParam String text, @RequestParam String parse_mode);
+    @GetMapping("/sendMessage")
+    Object sendAlert(@RequestParam Long chat_id,@RequestParam Long message_thread_id, @RequestParam String text, @RequestParam String parse_mode);
     @GetMapping("/editmessagereplymarkup")
     Object editMessage(@RequestBody EditMessageReplyMarkup editMessageReplyMarkup);
-
     @PostMapping("/sendMessage")
     Message sendKeyboard(@RequestBody SendMessage sendMessage);
 }
