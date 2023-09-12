@@ -11,6 +11,14 @@ import java.util.List;
 @Repository
 public interface MyRepo extends JpaRepository<DBdetails,Long> {
     DBdetails findByDomain(String domain);
+
+    DBdetails findByDomainIgnoreCaseAndScheduledTrue(String domain);
+
+    List<DBdetails> findByDomainIgnoreCaseIn(List<String> domains);
+    List<DBdetails> findAllByDomain(String domain);
+    List<DBdetails> findAllByEndTimeistStartsWithOrderByEndTimeistDesc(String ft);
+
+    List<DBdetails> findAllByDomainIgnoreCase(String domain);
     DBdetails findByAuctionId(Long auctionId);
 
     DBdetails findByNamecheapid(String namecheapid);
@@ -20,13 +28,24 @@ public interface MyRepo extends JpaRepository<DBdetails,Long> {
     DBdetails findByPlatformAndDomain(String Platform, String domain);
     DBdetails findByPlatformAndAuctionId(String Platform, Long AuctionId);
 
-
+    DBdetails findByWatchlistTrueAndDomainIgnoreCase(String domain);
     List<DBdetails> findByIsBidPlacedAndResult(Boolean isBidPlaced, String result);
 
+    List<DBdetails> findByScheduledTrueOrderByEndTimeistAsc();
     List<DBdetails> findByResult(String result);
 
     @Query(value = "select d from DBdetails d where (d.result='Won' or d.result='Loss') and (d.endTimeist> ?1 and d.endTimeist<?2) order by d.endTimeist desc")
     List<DBdetails> getResultList(String d1, String d2);
+
+    @Query(value = "select d from DBdetails d where (d.result='Won' or d.result='Loss') and (d.endTimeist like ?1) order by d.endTimeist desc")
+    List<DBdetails> getResultListbyDate(String d1);
+
+
+    @Query(value = "select d from DBdetails d where (d.result='Won') and (d.endTimeist> ?1) order by d.endTimeist desc")
+    List<DBdetails> getWonList(String d1);
+
+    @Query(value = "select d from DBdetails d where (d.result='Loss') and (d.endTimeist> ?1) order by d.endTimeist desc")
+    List<DBdetails> getLostList(String d1);
 
     @Query(value = "select d from DBdetails d where (d.result='Bid Scheduled' or d.result='Bid Placed' or d.result='Bid Placed And Scheduled' or d.result='Outbid') and (d.endTimeist> ?1 and d.endTimeist<?2) order by d.endTimeist asc")
     List<DBdetails> getScheduledList(String d1, String d2);

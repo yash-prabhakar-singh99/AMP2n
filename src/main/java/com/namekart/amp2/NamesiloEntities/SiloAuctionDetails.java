@@ -13,6 +13,7 @@ public class SiloAuctionDetails {
 
 
     //@XmlElement(name="id")
+    @Column(unique = true)
     @JacksonXmlProperty(localName = "id")
     Long nsid;
 
@@ -21,7 +22,28 @@ public class SiloAuctionDetails {
     @JacksonXmlProperty(localName = "idd")
     //@XmlElement(name="idd")
     Long id;
-    Boolean initialList, endList;
+    Boolean initialList;
+    Boolean endList;
+
+    public Boolean getHighlight() {
+        return highlight;
+    }
+
+    public void setHighlight(Boolean highlight) {
+        this.highlight = highlight;
+    }
+
+    Boolean highlight;
+
+    Integer EST;
+
+    public Integer getEST() {
+        return EST;
+    }
+
+    public void setEST(Integer EST) {
+        this.EST = EST;
+    }
 
     public Boolean getInitialList() {
         return initialList;

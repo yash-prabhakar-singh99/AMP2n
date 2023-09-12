@@ -18,6 +18,16 @@ public class Message {
     Long date;
     String text;
 
+    InlineKeyboardMarkup reply_markup;
+
+    public InlineKeyboardMarkup getReply_markup() {
+        return reply_markup;
+    }
+
+    public void setReply_markup(InlineKeyboardMarkup reply_markup) {
+        this.reply_markup = reply_markup;
+    }
+
     public Message() {
     }
 

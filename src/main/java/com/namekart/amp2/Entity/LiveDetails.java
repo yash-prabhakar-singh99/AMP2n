@@ -13,6 +13,8 @@ public class LiveDetails {
     Long id;
     Integer EST;
 
+
+
     public Integer getEST() {
         return EST;
     }
@@ -20,7 +22,18 @@ public class LiveDetails {
     public void setEST(Integer EST) {
         this.EST = EST;
     }
-    Boolean initialList,endList;
+    Boolean initialList;
+    Boolean endList;
+
+    public Boolean getHighlight() {
+        return highlight;
+    }
+
+    public void setHighlight(Boolean highlight) {
+        this.highlight = highlight;
+    }
+
+    Boolean highlight;
 
     public Boolean getInitialList() {
         return initialList;

@@ -77,7 +77,7 @@ public class LiveMap {
     public void setMapns(Map<Long, String> mapns) {
         this.mapns = mapns;
     }
-
+/*
     public Map<String, String> getMapnsregistered() {
         return mapnsregistered;
     }
@@ -92,6 +92,7 @@ public class LiveMap {
     @MapKeyColumn(name = "livensidreg")
     @Column(name = "livedomainnsreg")
     Map<String,String> mapnsregistered;
+    */
 
     public Map<String, Long> getMap() {
         return map;

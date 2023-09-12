@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.logging.Logger;
 
 @Component
+
 public class CustomErrorDecoder implements ErrorDecoder {
     @Autowired
     Decoder feignDecoder;
@@ -19,9 +20,10 @@ public class CustomErrorDecoder implements ErrorDecoder {
 
     @Override
     public Exception decode(String s, Response response) {
-        Exception exception = defaultErrorDecoder.decode(s, response);
+        Exception exception = defaultErrorDecoder.decode(s,response);
         logger.info("Dropcatch authorise exception: "+ response.reason());
            RetryableException e= new RetryableException(response.status(), response.reason(), response.request().httpMethod(),null,response.request());
            return e;
     }
 }
+

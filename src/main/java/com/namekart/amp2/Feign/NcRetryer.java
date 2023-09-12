@@ -41,6 +41,7 @@ public class NcRetryer implements Retryer {
         {
             Thread.currentThread().interrupt();
         }
+        logger.info("Re-performing action "+(attempt-1)+" time.");
 
     }
 

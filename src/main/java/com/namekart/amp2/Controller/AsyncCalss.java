@@ -167,7 +167,7 @@ public class AsyncCalss {
     }
 int i=0;
     @Async
-    public void cron1(String domain, String price, ScheduledFuture scheduledFuture)
+    public void cron1(String domain, String price, ScheduledFuture scheduledFuture, ScheduledFuture scheduledFuture1)
     {
         try {
             i++;
@@ -192,9 +192,27 @@ int i=0;
                     db.setStatus("Bought");
                     closeoutrepo.save(db);
                     scheduledFuture.cancel(true);
+                    scheduledFuture1.cancel(true);
                     i=0;
                 }
 
+            }
+            else
+            {
+                if(est.getMessage().equals("ERROR"))
+                {
+                    Date now= new Date();
+                    String time= timeft.format(now);
+                    logger.info("GoDaddy: Scheduled Closeout NOT CHECKED OUT from cart for domain: " + domain + " at price: " + price+" because of ERROR, most probably you're OUT OF FUND");
+                    notifRepo.save(new Notification("GoDaddy",time,"Scheduled Closeout NOT CHECKED OUT from cart for domain: " + domain + " at price: " + price+" because of ERROR, most probably you're OUT OF FUND"));
+                    telegram.sendAlert(-930742733l, "GoDaddy: Scheduled Closeout NOT CHECKED OUT from cart for domain: " + domain + " at price: " + price+" because of ERROR, most probably you're OUT OF FUND");
+                    Closeoutdb db = closeoutrepo.findByDomain(domain);
+                    db.setStatus("ERROR");
+                    closeoutrepo.save(db);
+                    scheduledFuture.cancel(true);
+                    scheduledFuture1.cancel(true);
+                    i=0;
+                }
             }
 
         }
@@ -208,10 +226,11 @@ int i=0;
     class CheckOut implements Runnable
     {
         String domain,price;
-        ScheduledFuture scheduledFuture;
+        ScheduledFuture scheduledFuture;ScheduledFuture scheduledFuture1;
 
-        public void setScheduledFuture(ScheduledFuture scheduledFuture) {
+        public void setScheduledFuture(ScheduledFuture scheduledFuture, ScheduledFuture scheduledFuture1) {
             this.scheduledFuture = scheduledFuture;
+            this.scheduledFuture1=scheduledFuture1;
         }
 
         public CheckOut(String domain, String price) {
@@ -221,7 +240,7 @@ int i=0;
 
         @Override
         public void run() {
-            cron1(domain,price,scheduledFuture);
+            cron1(domain,price,scheduledFuture,scheduledFuture1);
         }
     }
 
@@ -249,14 +268,12 @@ int i=0;
 
                 ScheduledFuture s=taskScheduler.scheduleAtFixedRate(checkOut,now,30000);
                 now.setMinutes(now.getMinutes()+20);
-                taskScheduler.schedule(new CancelCron1(scheduledFuture),now);
-                checkOut.setScheduledFuture(s);
+                ScheduledFuture s1=taskScheduler.schedule(new CancelCron1(s,domain),now);
+                checkOut.setScheduledFuture(s,s1);
                 scheduledFuture.cancel(true);
                 scheduledFuture1.cancel(true);
 
             }
-           /* else
-                logger.info(p.getIsValid());*/
 
         }
         catch(Exception e)
@@ -270,14 +287,26 @@ int i=0;
     {
         ScheduledFuture scheduledFuture;
 
-        public CancelCron1(ScheduledFuture scheduledFuture) {
+        String domain;
+        public CancelCron1(ScheduledFuture scheduledFuture, String domain) {
             this.scheduledFuture = scheduledFuture;
+            this.domain=domain;
         }
 
         @Override
         public void run() {
             if((!scheduledFuture.isDone())||(!scheduledFuture.isCancelled()))
                 scheduledFuture.cancel(true);
+
+            Date now= new Date();
+            String time= timeft.format(now);
+            logger.info("GoDaddy: Scheduled Closeout NOT CHECKED OUT from cart for domain: " + domain + " after trying for 20 mins, Someone else may have sniped it.");
+            notifRepo.save(new Notification("GoDaddy",time,"Scheduled Closeout NOT CHECKED OUT from cart for domain: " + domain +  " after trying for 20 mins, Someone else may have sniped it."));
+            telegram.sendAlert(-930742733l,"GoDaddy: Scheduled Closeout NOT CHECKED OUT from cart for domain: " + domain + " after trying for 20 mins, Someone else may have sniped it.");
+            Closeoutdb db = closeoutrepo.findByDomain(domain);
+            db.setStatus("Not Checked Out");
+            closeoutrepo.save(db);
+            i=0;
         }
     }
 

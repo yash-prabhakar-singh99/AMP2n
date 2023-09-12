@@ -6,6 +6,14 @@ public class FetchReq {
     List<String> domains;
     Boolean watch;
 
+    public FetchReq(List<String> domains, Boolean watch) {
+        this.domains = domains;
+        this.watch = watch;
+    }
+
+    public FetchReq() {
+    }
+
     public List<String> getDomains() {
         return domains;
     }

@@ -1,16 +1,36 @@
 package com.namekart.amp2.DCEntity;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import javax.persistence.*;
 
 @Entity
 public class AuctionDetailDC {
-    Long auctionId, highBid, maxBid, numberOfBidders, minimumNextBid, bidIncrement;
+    @Column(unique=true)
+    Long auctionId;
+    Long highBid, maxBid, numberOfBidders, minimumNextBid, bidIncrement;
     String name, endTime, highestBidder, type;
     Integer GDV;
-    Boolean initialList, endList;
+
+    public Integer getEST() {
+        return EST;
+    }
+
+    public void setEST(Integer EST) {
+        this.EST = EST;
+    }
+
+    Integer EST;
+    Boolean initialList;
+    Boolean endList;
+
+    public Boolean getHighlight() {
+        return highlight;
+    }
+
+    public void setHighlight(Boolean highlight) {
+        this.highlight = highlight;
+    }
+
+    Boolean highlight;
 
     public Boolean getInitialList() {
         return initialList;

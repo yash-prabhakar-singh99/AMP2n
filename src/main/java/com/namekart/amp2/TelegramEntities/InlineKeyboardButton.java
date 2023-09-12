@@ -1,13 +1,32 @@
 package com.namekart.amp2.TelegramEntities;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class InlineKeyboardButton {
-    String text, callback_data;
+    String text;
+    String callback_data;
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    String url;
 
     public InlineKeyboardButton(String text, String callback_data) {
         this.text = text;
         this.callback_data = callback_data;
+       // this.url="";
     }
 
+    public InlineKeyboardButton(String text) {
+        this.text = text;
+        //this.url="";
+
+    }
     public InlineKeyboardButton() {
     }
 

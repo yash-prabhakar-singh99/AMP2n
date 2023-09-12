@@ -86,6 +86,21 @@
             <groupId>io.github.openfeign</groupId>
             <artifactId>feign-okhttp</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.azure.spring</groupId>
+            <artifactId>azure-spring-boot-starter-active-directory</artifactId>
+            <version>3.14.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.azure.spring</groupId>
+            <artifactId>spring-cloud-azure-starter-active-directory</artifactId>
+            <version>4.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -125,6 +140,7 @@
                         <include>*.wsdl</include>
                     </schemaIncludes>
                 </configuration>
+
             </plugin>
             <plugin>
                 <groupId>org.jvnet.jaxb2.maven2</groupId>

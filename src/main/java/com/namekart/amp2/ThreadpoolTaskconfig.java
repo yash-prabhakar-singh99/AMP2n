@@ -4,6 +4,7 @@ package com.namekart.amp2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
@@ -15,6 +16,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @ComponentScan()
 public class ThreadpoolTaskconfig {
     @Bean
+    @Primary
     public ThreadPoolTaskScheduler threadPoolTaskScheduler() {
         ThreadPoolTaskScheduler threadPoolTaskScheduler
                 = new ThreadPoolTaskScheduler();

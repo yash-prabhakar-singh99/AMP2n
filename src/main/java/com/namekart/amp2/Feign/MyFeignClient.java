@@ -22,7 +22,7 @@ public interface MyFeignClient {
     String getClosedAuctionDetailstr(@RequestParam String key,@RequestParam String command,@RequestParam String startDate,@RequestParam String endDate, @RequestParam String currency);
 
     @GetMapping()
-    ResponseLive getLiveDetails(@RequestParam String key,@RequestParam String command, @RequestParam String currency);
+    ResponseLive getLiveDetails(@RequestParam String key,@RequestParam String command, @RequestParam String currency, @RequestParam String type);
 
 
 

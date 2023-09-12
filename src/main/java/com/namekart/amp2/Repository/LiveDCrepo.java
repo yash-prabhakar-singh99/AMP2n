@@ -11,8 +11,17 @@ public interface LiveDCrepo extends JpaRepository<AuctionDetailDC,Long> {
     List<AuctionDetailDC> findByOrderByIdDesc();
 
     List<AuctionDetailDC> findByInitialListTrue();
-
     List<AuctionDetailDC> findByEndListTrue();
 
+    List<AuctionDetailDC> findByInitialListTrueOrderByESTDesc();
+    List<AuctionDetailDC> findAllByOrderByESTDesc();
+    List<AuctionDetailDC> findByInitialListTrueAndHighlightTrueOrderByESTDesc();
+
+    List<AuctionDetailDC> findByHighlightTrueOrderByESTDesc();
+    List<AuctionDetailDC> findByEndListTrueAndHighlightTrueOrderByESTDesc();
+    List<AuctionDetailDC> findByEndListTrueOrderByESTDesc();
+
     AuctionDetailDC findByAuctionId(Long auctionId);
+    AuctionDetailDC findByNameIgnoreCase(String name);
+
 }

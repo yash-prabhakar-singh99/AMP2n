@@ -21,6 +21,8 @@ public interface DropCatchFeign {
     ResponseEntity<ResponseAuctionList> getAuctionDetail1(@RequestHeader(value = "Authorization", required = true) String bearer, @RequestParam String searchTerm,@RequestParam boolean showAllActive);
 
 
+    @PutMapping("/v2/backorders")
+    ResponseEntity<BackOrderResp> placeBackorders(@RequestHeader(value = "Authorization", required = true) String bearer, @RequestBody List<BackOrderform> backorders);
 
     @GetMapping("/v2/auctions")
     ResponseEntity<ResponseAuctionList> getAuctionDetails(@RequestHeader(value = "Authorization", required = true) String bearer, @RequestParam int size,@RequestParam boolean showAllActive, @RequestParam String Types, @RequestParam String sort);

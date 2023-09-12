@@ -1,7 +1,13 @@
 package com.namekart.amp2.EstibotEntity;
 
 public class Estibot_Data {
+    public Estibot_Data() {
+    }
 
+    public Estibot_Data(String domain, Integer appraised_value) {
+        this.domain = domain;
+        this.appraised_value = appraised_value;
+    }
     /*String domain, domain_cc, sld, sld_ntld,tld,words,language, category,category_root,first_word,second_word,keyword_locale,keyword_exact_keyword,keyword_broad_keyword,
             keyword_ng_locale,keyword_ng_exact_keyword,keyword_ng_broad_keyword,sld_ng_exact_keyword,sld_ng_broad_keyword,whois_create_date,whois_expire_date,whois_update_date,whois_registrar,whois_registrar_iana,
             whois_reg_name,whois_reg_org,whois_reg_email,whois_reg_email_count,trademark_type,trademark_term,trademark_company,site_language,traffic_estimate_source;

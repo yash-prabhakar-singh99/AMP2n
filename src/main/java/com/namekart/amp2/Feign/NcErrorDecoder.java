@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.logging.Logger;
 
 @Component
+
 public class NcErrorDecoder implements ErrorDecoder {
     @Autowired
     Decoder feignDecoder;
@@ -19,9 +20,10 @@ public class NcErrorDecoder implements ErrorDecoder {
     @Override
     public Exception decode(String s, Response response) {
         Exception exception = defaultErrorDecoder.decode(s, response);
-
+       // logger.info(response.request().requestTemplate().queries().get("orderBy").toArray()[0]+"");
         if(response.status()==400)
         {
+
             logger.info(response.reason());
             RetryableException e = new RetryableException(response.status(), response.reason(), response.request().httpMethod(), null, response.request());
             return e;
@@ -29,3 +31,4 @@ public class NcErrorDecoder implements ErrorDecoder {
         return exception;
     }
 }
+

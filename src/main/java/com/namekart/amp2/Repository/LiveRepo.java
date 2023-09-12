@@ -12,7 +12,16 @@ public interface LiveRepo extends JpaRepository<LiveDetails,Long> {
 List<LiveDetails> findByLiveTrueOrderByIdDesc();
     List<LiveDetails> findByInitialListTrue();
     List<LiveDetails> findByInitialListTrueOrderByESTDesc();
+    List<LiveDetails> findAllByOrderByESTDesc();
+    List<LiveDetails> findByInitialListTrueAndHighlightTrueOrderByESTDesc();
+    List<LiveDetails> findByHighlightTrueOrderByESTDesc();
+
+    List<LiveDetails> findByInitialListTrueAndESTIsGreaterThanOrEndListTrueAndBidsGreaterThanOrderByESTDesc(Integer EST, Integer bids);
+
+    List<LiveDetails> findByEndListTrueAndESTIsGreaterThanOrEndListTrueAndBidsGreaterThanOrderByESTDesc(Integer EST, Integer bids);
+
     List<LiveDetails> findByEndListTrueOrderByESTDesc();
+    List<LiveDetails> findByEndListTrueAndHighlightTrueOrderByESTDesc();
 
 
     List<LiveDetails> findByEndListTrue();
