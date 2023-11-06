@@ -12,6 +12,12 @@ import java.util.List;
 public interface MyRepo extends JpaRepository<DBdetails,Long> {
     DBdetails findByDomain(String domain);
 
+    DBdetails findTopByDomain(String domain);
+
+    DBdetails findTopByPlatformOrderByBidAmountDesc(String platform);
+    DBdetails findTopByPlatformAndScheduledTrueOrderByBidAmountDesc(String platform);
+
+
     DBdetails findByDomainIgnoreCaseAndScheduledTrue(String domain);
 
     List<DBdetails> findByDomainIgnoreCaseIn(List<String> domains);

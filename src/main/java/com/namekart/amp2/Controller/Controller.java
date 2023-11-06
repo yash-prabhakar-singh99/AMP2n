@@ -1,5 +1,6 @@
 package com.namekart.amp2.Controller;
 
+import com.azure.spring.aad.AADOAuth2AuthenticatedPrincipal;
 import com.namekart.amp2.DotDBEntity.DdMatch;
 import com.namekart.amp2.DotDBEntity.DotDbResponse;
 import com.namekart.amp2.Entity.*;
@@ -8,17 +9,23 @@ import com.namekart.amp2.Feign.*;
 import com.namekart.amp2.Repository.*;
 import com.namekart.amp2.Service.Service;
 //import com.namekart.amp2.Tasks.PlaceBid;
+import com.namekart.amp2.SettingsEntity.FastBidSetting;
 import com.namekart.amp2.SettingsEntity.LiveFilterSettings;
 import com.namekart.amp2.Status;
 import com.namekart.amp2.TelegramEntities.*;
+import com.namekart.amp2.UserEntities.Action;
+import com.namekart.amp2.UserEntities.User;
 import org.apache.commons.lang3.time.StopWatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.PostConstruct;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -78,7 +85,7 @@ public class Controller {
     @Qualifier(value = "workStealingPool")
     ForkJoinPool threadPoolExecutor;
 
-    static String key="8B8Y70UXd7o7D58A8rh7N829B629L9H8W9G7e7q9W8d";
+    static String key="6QA7t7bx6I7Yjk7Sk8X6f8E7dq6n9R9F6YRa7E7X";
     SimpleDateFormat ft1 = new SimpleDateFormat("yyyy-MM-dd HH:mm z");
     SimpleDateFormat timeft = new SimpleDateFormat("dd/MM HH:mm");
     TimeZone ist = TimeZone.getTimeZone("IST");
@@ -111,6 +118,73 @@ public class Controller {
         lm = liveMaprepo.findById(1).get();*/
     }
     //ScheduledFuture scheduledFuture;
+    @Autowired
+    FastSettingsRepo fastSettingsRepo;
+
+    FastBidSetting fastBidSetting;
+
+    @PostConstruct
+    void postConstruct()
+    {
+        Optional<FastBidSetting> op= fastSettingsRepo.findById("Dynadot");
+        if(!op.isPresent())
+        {
+            fastBidSetting=new FastBidSetting("Dynadot",4,1000);
+            fastSettingsRepo.save(fastBidSetting);
+        }
+    }
+
+    void setFastBidSetting(int n, int amount)
+    {
+        fastBidSetting.setFastBidAmount(amount);fastBidSetting.setFastN(n);
+        fastBidSetting=fastSettingsRepo.save(fastBidSetting);
+    }
+
+    @Autowired
+    UserRepository userRepository;
+
+    User getUser()
+    {
+        return userRepository.findByEmail(getToken().getClaim("unique_name")+"");
+    }
+
+    User getUser(Long tg_id)
+    {
+        return userRepository.findByTgUserId(tg_id);
+    }
+
+    AADOAuth2AuthenticatedPrincipal getToken()
+    {
+        return (AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+    String getUserName()
+    {
+        return (getToken().getClaim("unique_name")+"");
+    }
+    @Autowired
+    ActionRepository actionRepository;
+
+    void saveAction(String action, String medium, User user, DBdetails dbdetails, Notification notification, boolean success, String domain, String userName)
+    {
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+    void saveAction(String action, String medium, String telegramGroup, DBdetails dbdetails, Notification notification, boolean success, String domain,Long tg_id)
+    {
+
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,telegramGroup,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+
+    void saveAction(String action, String medium, DBdetails dbdetails, Notification notification, boolean success, String domain, Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
 
     String liveFormata(String status, String timeLeft, String domain, String minBid, String ourMaxBid, long age, Integer EST)
     {
@@ -134,6 +208,7 @@ public class Controller {
     {
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " dd "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " dd "+auctionId+" " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton(mute_unmute, "m" + " dd "+auctionId+" " + domain + " " + currbid));
@@ -141,9 +216,12 @@ public class Controller {
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://www.dynadot.com/market/auction/" + domain);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " dd "+auctionId+" " + domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " dd "+auctionId+" " + domain + " " + currbid));
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -151,15 +229,20 @@ public class Controller {
     {
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2=new ArrayList<>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " dd "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " dd "+auctionId+" " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Refresh", "r" + " dd "+auctionId+" " + domain + " " + currbid));
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://www.dynadot.com/market/auction/" + domain);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " dd "+auctionId+" " + domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " dd "+auctionId+" " + domain + " " + currbid));
+
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -167,6 +250,7 @@ public class Controller {
     {
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " dd "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " dd "+auctionId+" " + domain + " " + currbid));
         row.add(new InlineKeyboardButton("Watch", "w" + " dd " +auctionId+" "+ domain + " " + currbid));
@@ -175,10 +259,13 @@ public class Controller {
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://www.dynadot.com/market/auction/" + domain);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " dd "+auctionId+" " + domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " dd "+auctionId+" " + domain + " " + currbid));
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -194,6 +281,12 @@ public class Controller {
         String text=liveFormata(status,timeLeft,domain,minBid,ourMaxBid,age,EST);
         telegram.sendKeyboard(new SendMessage(-1001887754426L,text,getKeyboardWatch(domain,auctionId,minBid)));
     }
+
+    void sendLive(String timeLeft, String domain, String minBid, long age,Integer EST,String ourMaxBid,Long auctionId)
+    {
+        String text=liveFormata("Live Detect",timeLeft,domain,minBid,ourMaxBid,age,EST);
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,1014l,text,getKeyboardLive(domain,auctionId,minBid)));
+    }
     void sendLive(String timeLeft, String domain, String minBid, long age,Integer EST,Long auctionId)
     {
         String text=liveFormata("Live Detect",timeLeft,domain,minBid,"",age,EST);
@@ -206,12 +299,23 @@ public class Controller {
             text=text+"\n"+leads;
         telegram.sendKeyboard(new SendMessage(-1001763199668l,1014l,text,getKeyboardLive(domain,auctionId,minBid)));
     }
+    void sendLive(String timeLeft, String domain, String minBid, long age,Integer EST,Long auctionId,String leads,String ourMaxBid)
+    {
+        String text=liveFormata("Live Detect",timeLeft,domain,minBid,ourMaxBid,age,EST);
+        if(leads!=null&&!leads.equals(""))
+            text=text+"\n"+leads;
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,1014l,text,getKeyboardLive(domain,auctionId,minBid)));
+    }
+    void sendLiveI(String timeLeft, String domain, String minBid, long age,Integer EST,Long auctionId, String ourMaxBid)
+    {
+        String text=liveFormata("Initial Detect",timeLeft,domain,minBid,ourMaxBid,age,EST);
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,24112l,text,getKeyboardLive(domain,auctionId,minBid)));
+    }
     void sendLiveI(String timeLeft, String domain, String minBid, long age,Integer EST,Long auctionId)
     {
         String text=liveFormata("Initial Detect",timeLeft,domain,minBid,"",age,EST);
         telegram.sendKeyboard(new SendMessage(-1001763199668l,24112l,text,getKeyboardLive(domain,auctionId,minBid)));
     }
-
     void sendOutbid(String status, String timeLeft, String domain, String minBid, String ourMaxBid, long age, String EST,Long auctionId)
     {
         String text=liveFormata(status,timeLeft,domain,minBid,ourMaxBid,age,EST);
@@ -275,7 +379,8 @@ void refreshTaskMap()
 
 }
     @Scheduled(cron = "0 00 18 ? * *", zone = "IST")
-    void healthCheckfinal()
+    void
+    healthCheckfinal()
     {
         int t=8+3+6;
         String s = String.format("| %-" + (t - 4) + "s |%n", "Health Check");
@@ -437,6 +542,7 @@ taskmap.put(domain,status);
             taskmap.remove(domain);}
     }
 
+    @PreAuthorize("hasAuthority('APPROLE_Bid_DD')")
  @PostMapping("/postDomains")
     List<Integer> mainmain(@RequestBody List<List<String>> ddlist) {
 
@@ -494,7 +600,8 @@ taskmap.put(domain,status);
                              String time = ft1.format(now);
                              synchronized (this) {
                                  telegram.sendAlert(-930742733l, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price());
-                                 notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price()));
+                                 Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price()));
+                                 saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                                  logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price());
                              }
                          }, threadPoolExecutor);
@@ -506,7 +613,8 @@ taskmap.put(domain,status);
                              Date now = new Date();
                              String time = timeft.format(now);
                              telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as auction has ended.");
-                             notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                             Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                             saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                              logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended.");
                          }, threadPoolExecutor);
                      }
@@ -533,7 +641,7 @@ taskmap.put(domain,status);
          } else {
              Date date = new Date();
              String time = ft1.format(date);
-             notifRepo.save(new Notification("Dynadot", time, "Bid not scheduled for domains as: " + ra.getCont()));
+             Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid not scheduled for domains as: " + ra.getCont()));
              logger.info(time + ": Bid not scheduled for domains as: " + ra.getCont());
          }
      }else {
@@ -546,7 +654,7 @@ taskmap.put(domain,status);
      return l;
  }
 
-    BulkScheduleResponse mainmainbot(@RequestBody List<List<String>> ddlist) {
+    BulkScheduleResponse mainmainbot(@RequestBody List<List<String>> ddlist,Long tg_id) {
 
         CompletableFuture<List<Estibot_Data>> cf= controller.getEstibotList1(ddlist);
         List<Integer> l = new ArrayList<>();
@@ -554,12 +662,12 @@ taskmap.put(domain,status);
         int n = ddlist.size();
         BulkScheduleResponse res=null;
         // List<Long> ids = new ArrayList<>();
-        Map<String, String> map = new HashMap<>();
+        Map<String, List<String>> map = new HashMap<>();
         String domainss = "";
         for (int i = 0; i < n; i++) {
             int l1=ddlist.get(i).size();
-            String domain = ddlist.get(i).get(l1-2).toLowerCase();
-            map.put(domain, ddlist.get(i).get(l1-1));
+            String domain = ddlist.get(i).get(0).toLowerCase();
+            map.put(domain, ddlist.get(i).subList(1,l1));
             domainss = domainss + domain + ",";
         }
         String s="";
@@ -575,7 +683,7 @@ taskmap.put(domain,status);
 
                     Auction_json aj = AuctionDetails.get(i).getAuction_json();
                     String domain = aj.getDomain().toLowerCase();
-                    String bid = map.get(domain);
+                    String bid = map.get(domain).get(0);
 
 
                     try {
@@ -597,7 +705,7 @@ taskmap.put(domain,status);
                                 }
                                 a++;
 
-                                placebidnotifanddb(domain, bid, aj, date, now);
+                                placebidnotifanddbtg(domain, map.get(domain), aj, date, now,tg_id);
                             } else {
                                 String text="Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price();
                                 s=s+text+"\n";
@@ -607,7 +715,8 @@ taskmap.put(domain,status);
                                     synchronized (this) {
                                         telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price());
 
-                                        notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price()));
+                                        Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price()));
+                                        saveAction("Bid Scheduled","CPanel",repo.findTopByDomain(domain),notification,false,domain,tg_id);
                                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + aj.getAccepted_bid_price());
                                     }
                                 }, threadPoolExecutor);
@@ -621,7 +730,8 @@ taskmap.put(domain,status);
                                 Date now = new Date();
                                 String time = timeft.format(now);
                                 telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as auction has ended.");
-                                notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                                saveAction("Bid Scheduled","CPanel",repo.findTopByDomain(domain),notification,false,domain,tg_id);
                                 logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended.");
                             }, threadPoolExecutor);
                         }
@@ -671,13 +781,13 @@ CompletableFuture placebidnotifanddb(String domain, String bid, Auction_json aj,
     String time = timeft.format(now);
     String pst = aj.getEnd_time();
         Optional<DBdetails> op =null;
-synchronized (this) {
-    notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
+
+    Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
     logger.info(time + ": Bid SCHEDULED for " + domain + " at price " + bid + " time " + bidist + " i.e. " + date);
     telegram.sendAlert(-1001763199668l,1005l, "Dynadot: Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist);
 
      op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Dynadot", aj.getAuction_id()));
-}
+
 DBdetails dBdetails = null;
 
     if (!op.isPresent()) {
@@ -698,10 +808,81 @@ DBdetails dBdetails = null;
         synchronized (this) {
         repo.save(dBdetails);
     }
-    //asyncCalss.getGDVSync(dBdetails);
+        saveAction("Bid Scheduled","UI",getUser(),dBdetails,notification,true,domain,getUserName());
+        //asyncCalss.getGDVSync(dBdetails);
         },threadPoolExecutor);
 
 }
+    CompletableFuture placebidnotifanddbtg(String domain, List<String> list, Auction_json aj, Date date, Date now, Long tg_id)
+    {
+        return CompletableFuture.runAsync(() ->
+        {
+            String bid=list.get(0);
+            String ist = ft1.format(date);
+            String time_left = relTime(date);
+            String bidist = ft1.format(date);
+            String time = timeft.format(now);
+            String pst = aj.getEnd_time();
+            Optional<DBdetails> op =null;
+
+            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
+            logger.info(time + ": Bid SCHEDULED for " + domain + " at price " + bid + " time " + bidist + " i.e. " + date);
+            telegram.sendAlert(-1001763199668l,1005l, "Dynadot: Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist);
+
+            op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Dynadot", aj.getAuction_id()));
+
+            DBdetails dBdetails = null;
+
+            if (!op.isPresent()) {
+                dBdetails = new DBdetails(domain, aj.getAuction_id(), "Dynadot", aj.getCurrent_bid_price(), aj.getBidders(), time_left, aj.getAge(), Integer.valueOf(aj.getEstibot_appraisal().substring(1, aj.getEstibot_appraisal().length() - 3)), aj.getAuction_type(), bid, "Bid Scheduled", pst, ist,false);
+            } else {
+                dBdetails = op.get();
+                dBdetails.setResult("Bid Scheduled");
+                dBdetails.setBidAmount(bid);
+                dBdetails.setBidplacetime(bidist);
+                dBdetails.setCurrbid(aj.getCurrent_bid_price());
+                dBdetails.setBidders(aj.getBidders());
+                dBdetails.setTime_left(time_left);
+                dBdetails.setEndTimepst(pst);
+                dBdetails.setEndTimeist(ist);
+            }
+            dBdetails.setScheduled(true);
+            if(list.size()>1)
+            {
+                if(list.size()==3)
+                {
+                    int fast=Integer.valueOf(list.get(2));
+                    if(fast>10)
+                    {
+                        dBdetails.setFastBidAmount(list.get(2));
+                        dBdetails.setFast_n(fastBidSetting.getFastN());
+                    }
+                    else {
+                        dBdetails.setFast_n(fast);
+                        dBdetails.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                    }
+                }
+                else if(list.size()==4)
+                {
+                    int fast=Integer.valueOf(list.get(2));
+                    dBdetails.setFastBidAmount(list.get(3));
+                    dBdetails.setFast_n(fast);
+                }
+                else if(list.size()==2)
+                {
+                    dBdetails.setFast_n(fastBidSetting.getFastN());
+                    dBdetails.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                }
+            }
+
+            synchronized (this) {
+                repo.save(dBdetails);
+            }
+            saveAction("Bid Scheduled","CPanel",dBdetails,notification,true,domain,tg_id);
+            //asyncCalss.getGDVSync(dBdetails);
+        },threadPoolExecutor);
+
+    }
 
 @GetMapping("/trygdv")
 void try2()
@@ -732,7 +913,8 @@ class Try implements Runnable
     }
 }
 
-    @PostMapping("/postDomainsinstant")
+
+    @PreAuthorize("hasAuthority('APPROLE_Bid_DD')") @PostMapping("/postDomainsinstant")
     List<Integer> mainmaininstant(@RequestBody List<List<String>> ddlist)
     {
         //SimpleDateFormat ft = new SimpleDateFormat("yyyy/MM/dd HH:mm z");
@@ -767,7 +949,7 @@ class Try implements Runnable
                    // String bidist = ft1.format(date1);
                     String time= timeft.format(date1);
                    //System.out.println(date);
-                    notifRepo.save(new Notification("Dynadot",time,"Instant Bid Placed for " + domain + " at price " + bid ));
+                    Notification notification=notifRepo.save(new Notification("Dynadot",time,"Instant Bid Placed for " + domain + " at price " + bid ));
                     telegram.sendAlert(-1001763199668l,1005l,"Dynadot: Instant Bid Placed for " + domain + " at price " + bid );
 
                     logger.info(time+": Instant Bid Placed for " + domain + " at price " + bid );
@@ -793,6 +975,8 @@ class Try implements Runnable
                         dBdetails.setEndTimeist(ist);
                     }
                     repo.save(dBdetails);
+                    saveAction("Bid Instant","UI",getUser(),dBdetails,notification,true,domain,getUserName());
+
                     /*if(bd!=null)
                     for (int j = 0; j < bd.size(); j++) {
                         DB_Bid_Details dbd = new DB_Bid_Details(dBdetails, bd.get(j));
@@ -807,7 +991,8 @@ class Try implements Runnable
                     String time = ft1.format(now);
                     logger.info(time+": Dynadot: Instant Bid NOT PLACED for " + domain + " at price " + bid + " with error: " + content);
                     try {
-                        notifRepo.save(new Notification("Dynadot", time, "Instant Bid NOT PLACED for " + domain + " at price " + bid + " with error: " + content));
+                        Notification notification=notifRepo.save(new Notification("Dynadot", time, "Instant Bid NOT PLACED for " + domain + " at price " + bid + " with error: " + content));
+                        saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                     }
                     catch(Exception e)
                     {
@@ -838,8 +1023,150 @@ class Try implements Runnable
 
     }
 
+    @PreAuthorize("hasAnyAuthority('APPROLE_Bid_DD','APPROLE_Live_Bid_DD')")
+    @GetMapping("/schedulesingledynalive")
+    float mainmainsingle1live(@RequestParam String domain,@RequestParam Long auctionId,@RequestParam String bid)
+    {
+
+        try {
+            CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
+            //logger.info("no");
+            Response_AuctionDetails ra = myFeignClient.getAuctionDetails(key, "get_auction_details", domain, "usd");
+            if(ra.getStatus()!=null)
+            {
+                logger.info(ra.getStatus());
+                if (ra.getStatus().equals("success")) {
+                    if (!ra.getAuction_det().getAuction_json().getAuction_ended()) {
+                        Date now = new Date();
+                        float currbidf = Float.valueOf(ra.getAuction_det().getAuction_json().getAccepted_bid_price());
+                        if (currbidf <= Float.valueOf(bid)) {
+                            Long timestamp = ra.getAuction_det().getAuction_json().getEnd_time_stamp();
+                            Date date = new Date(timestamp);
+                            //logger.info("yes1");
+                            String pst = ra.getAuction_det().getAuction_json().getEnd_time();
+                            if (timestamp - now.getTime() > 300000) {
+                                date.setMinutes(date.getMinutes() - 5);
+                                ScheduledFuture pre = taskScheduler.schedule(new PreCheck(domain, bid), date);
+                                enterTaskMap(domain, pre, "pc");
+                            } else {
+                                date.setSeconds(date.getSeconds() - 10);
+                                ScheduledFuture place = taskScheduler.schedule(new PlaceBid(domain, bid, pst), date);
+                                enterTaskMap(domain, place, "pb");
+                            }
+
+                            CompletableFuture.runAsync(() ->
+                            {
+                                String ist = ft1.format(date);
+                                String time_left = relTime(date);
+                                String bidist = ft1.format(date);
+                                String time = timeft.format(now);
+                                // Integer GDV = liveRepo.findByAuctionid(ra.getAuction_det().getAuction_json().getAuction_id()).getGdv();
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
+                                telegram.sendAlert(-1001763199668l, 1005l, "Dynadot: Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist);
+                                logger.info(time + ": Bid SCHEDULED for " + domain + " at price " + bid + " time " + date);
+                                Auction_json aj = ra.getAuction_det().getAuction_json();
+                                Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(aj.getAuction_id()));
+                                DBdetails dBdetails = null;
+                                List<Bid_details> bd = ra.getAuction_details().get(0).getBid_history();
+
+                                if (!op.isPresent()) {
+                                    dBdetails = new DBdetails(domain, aj.getAuction_id(), "Dynadot", aj.getCurrent_bid_price(), aj.getBidders(), time_left, aj.getAge(), Integer.valueOf(aj.getEstibot_appraisal().substring(1, aj.getEstibot_appraisal().length() - 3)), aj.getAuction_type(), bid, "Bid Scheduled", pst, ist, false);
+                                } else {
+                                    dBdetails = op.get();
+                                    dBdetails.setResult("Bid Scheduled");
+                                    dBdetails.setBidAmount(bid);
+                                    dBdetails.setBidplacetime(bidist);
+                                    dBdetails.setCurrbid(aj.getCurrent_bid_price());
+                                    dBdetails.setBidders(aj.getBidders());
+                                    dBdetails.setTime_left(time_left);
+                                    dBdetails.setEndTimepst(pst);
+                                    dBdetails.setEndTimeist(ist);
+                                }
+                                dBdetails.setScheduled(true);
+                                saveAction("Bid Scheduled","UI List",getUser(),dBdetails,notification,true,domain,getUserName());
+
+                                // dBdetails.setGdv(GDV);
+                                repo.save(dBdetails);
+                            }, threadPoolExecutor);
+                            controller.putESTinDBSingle(cf);
+                            return 0;
+                        } else {
+                            CompletableFuture.runAsync(() ->
+                            {
+                                String time = timeft.format(now);
+                                telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf);
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf));
+                                saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                                logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf);
+                            }, threadPoolExecutor);
+                            return currbidf;
+                        }
+                    } else {
+                        CompletableFuture.runAsync(() ->
+                        {
+                            Date now = new Date();
+                            String time = timeft.format(now);
+                            telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as auction has ended.");
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                            saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                            logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended.");
+                        }, threadPoolExecutor);
+                        return 2;
+                    }
+                } else {
+                    //str.add(domain);
+                    CompletableFuture.runAsync(() ->
+                    {
+                        String content = ra.getCont();
+                        Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content);
+                        logger.info(time + ": Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content);
+                        try {
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content));
+                            saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                        } catch (Exception e) {
+                            logger.info(e.getMessage());
+                        }
+                    }, threadPoolExecutor);
+                    return 1;
+                }
+            }
+            else
+            {
+                CompletableFuture.runAsync(() ->
+                {
+                    Date now = new Date();
+                    String time = timeft.format(now);
+                    telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                    Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                    logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                }, threadPoolExecutor);
+                return 2;
+            }
+        }
+        catch(Exception E)
+        {
+
+            Date now = new Date();
+            String time= timeft.format(now);
+            logger.info(time+": Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + E.getMessage());
+            try {
+                notifRepo.save(new Notification("Dynadot",time,"Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + E.getMessage()));
+            }
+            catch(Exception A)
+            {
+                notifRepo.save(new Notification("Dynadot",time,"Bid NOT SCHEDULED for " + domain + " at price " + bid+". See log for reason"));
+
+            }
+        }
+        return 0;
+    }
+
+    @PreAuthorize("hasAuthority('APPROLE_Bid_DD')")
     @GetMapping("/schedulesingledyna")
-    float mainmainsingle(@RequestParam String domain,@RequestParam Long auctionId,@RequestParam String bid)
+    float mainmainsingle1(@RequestParam String domain,@RequestParam Long auctionId,@RequestParam String bid)
     {
         try {
             CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
@@ -874,7 +1201,143 @@ class Try implements Runnable
                                 String bidist = ft1.format(date);
                                 String time = timeft.format(now);
                                 // Integer GDV = liveRepo.findByAuctionid(ra.getAuction_det().getAuction_json().getAuction_id()).getGdv();
-                                notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
+                                telegram.sendAlert(-1001763199668l, 1005l, "Dynadot: Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist);
+                                logger.info(time + ": Bid SCHEDULED for " + domain + " at price " + bid + " time " + date);
+                                Auction_json aj = ra.getAuction_det().getAuction_json();
+                                Optional<DBdetails> op = Optional.ofNullable(repo.findByAuctionId(aj.getAuction_id()));
+                                DBdetails dBdetails = null;
+                                List<Bid_details> bd = ra.getAuction_details().get(0).getBid_history();
+
+                                if (!op.isPresent()) {
+                                    dBdetails = new DBdetails(domain, aj.getAuction_id(), "Dynadot", aj.getCurrent_bid_price(), aj.getBidders(), time_left, aj.getAge(), Integer.valueOf(aj.getEstibot_appraisal().substring(1, aj.getEstibot_appraisal().length() - 3)), aj.getAuction_type(), bid, "Bid Scheduled", pst, ist, false);
+                                } else {
+                                    dBdetails = op.get();
+                                    dBdetails.setResult("Bid Scheduled");
+                                    dBdetails.setBidAmount(bid);
+                                    dBdetails.setBidplacetime(bidist);
+                                    dBdetails.setCurrbid(aj.getCurrent_bid_price());
+                                    dBdetails.setBidders(aj.getBidders());
+                                    dBdetails.setTime_left(time_left);
+                                    dBdetails.setEndTimepst(pst);
+                                    dBdetails.setEndTimeist(ist);
+                                }
+                                dBdetails.setScheduled(true);
+                                saveAction("Bid Scheduled","UI List",getUser(),dBdetails,notification,true,domain,getUserName());
+
+                                // dBdetails.setGdv(GDV);
+                                repo.save(dBdetails);
+                            }, threadPoolExecutor);
+                            controller.putESTinDBSingle(cf);
+                            return 0;
+                        } else {
+                            CompletableFuture.runAsync(() ->
+                            {
+                                String time = timeft.format(now);
+                                telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf);
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf));
+                                saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                                logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf);
+                            }, threadPoolExecutor);
+                            return currbidf;
+                        }
+                    } else {
+                        CompletableFuture.runAsync(() ->
+                        {
+                            Date now = new Date();
+                            String time = timeft.format(now);
+                            telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as auction has ended.");
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                            saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                            logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended.");
+                        }, threadPoolExecutor);
+                        return 2;
+                    }
+                } else {
+                    //str.add(domain);
+                    CompletableFuture.runAsync(() ->
+                    {
+                        String content = ra.getCont();
+                        Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content);
+                        logger.info(time + ": Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content);
+                        try {
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content));
+                            saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                        } catch (Exception e) {
+                            logger.info(e.getMessage());
+                        }
+                    }, threadPoolExecutor);
+                    return 1;
+                }
+            }
+            else
+            {
+                CompletableFuture.runAsync(() ->
+                {
+                    Date now = new Date();
+                    String time = timeft.format(now);
+                    telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                    Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    saveAction("Bid Scheduled","UI List",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
+                    logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                }, threadPoolExecutor);
+                return 2;
+            }
+        }
+        catch(Exception E)
+        {
+
+            Date now = new Date();
+            String time= timeft.format(now);
+            logger.info(time+": Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + E.getMessage());
+            try {
+                notifRepo.save(new Notification("Dynadot",time,"Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + E.getMessage()));
+            }
+            catch(Exception A)
+            {
+                notifRepo.save(new Notification("Dynadot",time,"Bid NOT SCHEDULED for " + domain + " at price " + bid+". See log for reason"));
+
+            }
+        }
+        return 0;
+    }
+    float mainmainsingle(@RequestParam String domain,@RequestParam Long auctionId,@RequestParam String bid,String chat_title,Long tg_id)
+    {
+        try {
+            CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
+            //logger.info("no");
+            Response_AuctionDetails ra = myFeignClient.getAuctionDetails(key, "get_auction_details", domain, "usd");
+            if(ra.getStatus()!=null)
+            {
+                logger.info(ra.getStatus());
+                if (ra.getStatus().equals("success")) {
+                    if (!ra.getAuction_det().getAuction_json().getAuction_ended()) {
+                        Date now = new Date();
+                        float currbidf = Float.valueOf(ra.getAuction_det().getAuction_json().getAccepted_bid_price());
+                        if (currbidf <= Float.valueOf(bid)) {
+                            Long timestamp = ra.getAuction_det().getAuction_json().getEnd_time_stamp();
+                            Date date = new Date(timestamp);
+                            //logger.info("yes1");
+                            String pst = ra.getAuction_det().getAuction_json().getEnd_time();
+                            if (timestamp - now.getTime() > 300000) {
+                                date.setMinutes(date.getMinutes() - 5);
+                                ScheduledFuture pre = taskScheduler.schedule(new PreCheck(domain, bid), date);
+                                enterTaskMap(domain, pre, "pc");
+                            } else {
+                                date.setSeconds(date.getSeconds() - 10);
+                                ScheduledFuture place = taskScheduler.schedule(new PlaceBid(domain, bid, pst), date);
+                                enterTaskMap(domain, place, "pb");
+                            }
+
+                            CompletableFuture.runAsync(() ->
+                            {
+                                String ist = ft1.format(date);
+                                String time_left = relTime(date);
+                                String bidist = ft1.format(date);
+                                String time = timeft.format(now);
+                                // Integer GDV = liveRepo.findByAuctionid(ra.getAuction_det().getAuction_json().getAuction_id()).getGdv();
                                 telegram.sendAlert(-1001763199668l, 1005l, "Dynadot: Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist);
                                 logger.info(time + ": Bid SCHEDULED for " + domain + " at price " + bid + " time " + date);
                                 Auction_json aj = ra.getAuction_det().getAuction_json();
@@ -899,6 +1362,9 @@ class Try implements Runnable
 
                                 // dBdetails.setGdv(GDV);
                                 repo.save(dBdetails);
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid SCHEDULED for " + domain + " at price " + bid + " at time " + bidist));
+                                saveAction("Bid Scheduled","Bubble",chat_title,dBdetails,notification,true,domain,tg_id);
+
                             }, threadPoolExecutor);
                             controller.putESTinDBSingle(cf);
                             return 0;
@@ -907,7 +1373,9 @@ class Try implements Runnable
                             {
                                 String time = timeft.format(now);
                                 telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf);
-                                notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf));
+                                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf));
+                                saveAction("Bid Scheduled","Bubble",chat_title,repo.findByAuctionId(auctionId),notification,false,domain,tg_id);
+
                                 logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + currbidf);
                             }, threadPoolExecutor);
                             return currbidf;
@@ -918,7 +1386,8 @@ class Try implements Runnable
                             Date now = new Date();
                             String time = timeft.format(now);
                             telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " as auction has ended.");
-                            notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " as auction has ended."));
+                            saveAction("Bid Scheduled","Bubble",chat_title,repo.findByAuctionId(auctionId),notification,false,domain,tg_id);
                             logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended.");
                         }, threadPoolExecutor);
                         return 2;
@@ -933,7 +1402,8 @@ class Try implements Runnable
                         telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content);
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content);
                         try {
-                            notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content));
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " at price " + bid + " with error: " + content));
+                            saveAction("Bid Scheduled","Bubble",chat_title,repo.findByAuctionId(auctionId),notification,false,domain,tg_id);
                         } catch (Exception e) {
                             logger.info(e.getMessage());
                         }
@@ -948,7 +1418,8 @@ class Try implements Runnable
                     Date now = new Date();
                     String time = timeft.format(now);
                     telegram.sendAlert(-930742733l, "Dynadot: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
-                    notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    saveAction("Bid Scheduled","Bubble",chat_title,repo.findByAuctionId(auctionId),notification,false,domain,tg_id);
                     logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
                 }, threadPoolExecutor);
                 return 2;
@@ -971,7 +1442,6 @@ class Try implements Runnable
         }
         return 0;
     }
-
     float mainmainsingleoutbid(@RequestParam String domain, @RequestParam Long auctionId,@RequestParam String bid)
     {
         try
@@ -1171,6 +1641,8 @@ Error2 getError(String domain)
     {
         logger.info(""+threadPoolExecutor.getParallelism()+" "+threadPoolExecutor.getActiveThreadCount());
     }
+
+    @PreAuthorize("hasAuthority('APPROLE_Watch')")
     @PostMapping("/fetchdetailsdyna")
     List<DBdetails> fetch1(@RequestBody FetchReq body)
     {
@@ -1235,7 +1707,10 @@ Error2 getError(String domain)
                         if (watch)
                         {db.setWatchlist(true);
                             sendWatchlist("Watchlisted",time_left,domain,aj.getAccepted_bid_price(),db.getBidAmount(),aj.getAge(),aj.getEstibot_appraisal(), aj.getAuction_id());
-                        }
+                            Date now=new Date();
+                            String time = timeft.format(now);
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Domain Watchlisted " + domain ));
+                            saveAction("Watchlisted","UI",getUser(),db,notification,true,domain,getUserName());}
                         list.add(db);
 
                         //logger.info(domain);
@@ -1269,11 +1744,111 @@ Error2 getError(String domain)
         return null;
     }
 
+    List<DBdetails> fetch1bot( FetchReq body,Long tg_id)
+    {
+
+        try {
+            List<String> domains = body.getDomains();
+            CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList(domains);
+            List<DBdetails> list = Collections.synchronizedList(new ArrayList<>());
+            List<Long> ids = Collections.synchronizedList(new ArrayList<>());
+
+            Boolean watch = body.getWatch();
+            int n = domains.size();
+            String domainss = "";
+
+            Set<String> set = new HashSet<>();
+            for (int i = 0; i < n; i++) {
+                String domain = domains.get(i).toLowerCase();
+                set.add(domain);
+                domainss = domainss + domain + ",";
+            }
+            Response_AuctionDetails ra = myFeignClient.getAuctionDetails(key, "get_auction_details", domainss, "usd");
+            if (ra.getStatus() == null)
+            {
+                set.addAll(domains);
+                //return null;
+            }
+            else
+            {
+                logger.info("" + threadPoolExecutor.getParallelism() + " " + " " + taskScheduler.getPoolSize());
+                // logger.info("1 "+ForkJoinPool.commonPool().getParallelism());
+                List<Auction_details> AuctionDetails = ra.getAuction_details();
+                CompletableFuture[] arr = new CompletableFuture[AuctionDetails.size()];
+                for (int i = 0; i < AuctionDetails.size(); i++) {
+
+                    int finalI = i;
+
+                    arr[i] = CompletableFuture.runAsync(() -> {
+                        Auction_json aj = AuctionDetails.get(finalI).getAuction_json();
+                        Long id = aj.getAuction_id();
+                        String domain = aj.getDomain().toLowerCase();
+                        set.remove(domain);
+
+                        String pst = aj.getEnd_time();
+                        Date date = new Date(aj.getEnd_time_stamp());
+                        String time_left = relTime(date);
+                        String ist = ft1.format(date);
+                        String currbid = aj.getCurrent_bid_price();
+                        logger.info(domain);
+                        Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Dynadot", aj.getAuction_id()));
+                        DBdetails db = null;
+                        if (!op.isPresent()) {
+                            db = new DBdetails(domain, aj.getAuction_id(), "Dynadot", aj.getCurrent_bid_price(), aj.getBidders(), time_left, aj.getAge(), Integer.valueOf(aj.getEstibot_appraisal().substring(1, aj.getEstibot_appraisal().length() - 3)), aj.getAuction_type(), "", "", pst, ist, false);
+                        } else {
+                            db = op.get();
+                            db.setCurrbid(currbid);
+                            db.setBidders(aj.getBidders());
+                            db.setTime_left(time_left);
+                            db.setAuctiontype(aj.getAuction_type());
+                            db.setEndTimepst(pst);
+                            db.setEndTimeist(ist);
+                        }
+                        if (watch)
+                        {db.setWatchlist(true);
+                         sendWatchlist("Watchlisted",time_left,domain,aj.getAccepted_bid_price(),db.getBidAmount(),aj.getAge(),aj.getEstibot_appraisal(), aj.getAuction_id());
+                            Date now=new Date();
+                            String time = timeft.format(now);
+                            Notification notification=notifRepo.save(new Notification("Dynadot", time, "Domain Watchlisted " + domain ));
+                            saveAction("Watchlisted","CPanel",db,notification,true,domain,tg_id);
+                        }
+                        list.add(db);
+
+                        //logger.info(domain);
+                        synchronized (this) {
+                            repo.save(db);
+                        }
+
+                    }, threadPoolExecutor);
+                }
+                CompletableFuture.allOf(arr).join();
+
+                /*if(watch)
+                asyncCalss.getGDVs(ids);*/
+                logger.info(""+threadPoolExecutor.getPoolSize()+" "+taskScheduler.getPoolSize());
+
+            }
+            asyncCalss.dynaNotFetchedNotif(set);
+            controller.putESTinDB(cf);
+
+       /* logger.info("2 "+ForkJoinPool.commonPool().getPoolSize());
+        System.out.println("CPU Core: " + Runtime.getRuntime().availableProcessors());
+        System.out.println("CommonPool Parallelism: " + ForkJoinPool.commonPool().getParallelism());
+        System.out.println("CommonPool Common Parallelism: " + ForkJoinPool.getCommonPoolParallelism());*/
+
+            return list;
+        }
+        catch(Exception e)
+        {
+            logger.info(e.getMessage());
+        }
+        return null;
+    }
+
 
 
 List<DBdetails> fetch(@RequestBody FetchReq body)
 {
-
     List<String> domains=body.getDomains();
     Boolean watch= body.getWatch();
     int n= domains.size();
@@ -1735,13 +2310,14 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
                 InlineKeyboardButton button= list.get(j);
                 String data= button.getCallback_data();
                 String[] arr = data.split(" ");
-                arr[4]=currbid;
-                data="";
-                for(int k=0;k<arr.length;k++)
-                {
-                    data=arr[i]+" ";
+                if(arr.length>3) {
+                    arr[4] = currbid;
+                    data = "";
+                    for (int k = 0; k < arr.length; k++) {
+                        data = arr[i] + " ";
+                    }
+                    button.setCallback_data(data);
                 }
-                button.setCallback_data(data);
             }
         }
         return markup;
@@ -1835,7 +2411,7 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
         }
     }
 
-    void watchListLive(String domain, Long id, Boolean track)
+    void watchListLive(String domain, Long id, Boolean track, String chat_title, Long tg_id)
     {
         try {
             CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
@@ -1893,6 +2469,11 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
                 if(track)
                 dBdetails.setTrack(true);
                 repo.save(dBdetails);
+                Date now=new Date();
+                String time = timeft.format(now);
+                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Domain Watchlisted " + domain ));
+                saveAction("Watchlisted","Bubble",chat_title,dBdetails,notification,true,domain,tg_id);
+
                 controller.putESTinDBSingle(cf);
             } else {
                 String content = rn.getCont();
@@ -1953,7 +2534,12 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
                /* if(track)
                     dBdetails.setTrack(true);*/
                 repo.save(dBdetails);
-            } else {
+                Date now=new Date();
+                String time = timeft.format(now);
+                Notification notification=notifRepo.save(new Notification("Dynadot", time, "Domain Watchlisted " + domain ));
+                saveAction("Watchlisted","UI",getUser(),dBdetails,notification,true,domain,getUserName());
+
+        } else {
                 String content = rn.getCont();
                 Date now= new Date();
                 String time = timeft.format(now);
@@ -1993,6 +2579,30 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
         return db.isWatchlist();
     }
 
+    @GetMapping("/watchlistsingle")
+    void watchlisted(@RequestParam Long id)
+    {
+        DBdetails db= repo.findById(id).get();
+        db.setWatchlist(true);
+        repo.save(db);
+       /* String plat= db.getPlatform();
+        if(plat.equals("Dynadot"))
+            instantUpdateWatchlist(db);
+        else if(plat.equals("Dropcatch"))
+            dropCatchController.instantUpdateWatchlist(db);
+        else if(plat.equals("GoDaddy"))
+            goDaddyController.instantUpdateWatchlist(db);
+        else if(plat.equals("Namecheap"))
+            namecheapController.instantUpdateWatchlist(db);*/
+    }
+
+    @GetMapping("/removewatchlistsingle")
+    void removewatchlisted(@RequestParam Long id)
+    {
+        DBdetails db= repo.findById(id).get();
+        db.setWatchlist(false);
+        repo.save(db);
+    }
     @PutMapping("/watchlisted")
     Boolean watchlisting(@RequestBody List<List<Long>> all)
     {
@@ -2012,7 +2622,6 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
                 goDaddyController.instantUpdateWatchlist(db);
             else if(plat.equals("Namecheap"))
                 namecheapController.instantUpdateWatchlist(db);
-
                 //db.setWatchlist(true);
             logger.info(db.getDomain());
             repo.save(db);
@@ -2042,8 +2651,16 @@ List<DBdetails> fetch(@RequestBody FetchReq body)
     @GetMapping("/getnotifications")
     List<Notification> getnotif()
     {
-        List<Notification> db = notifRepo.findByOrderByIDDesc();
+        List<Notification> db = notifRepo.findTop100ByOrderByIDDesc();
         logger.info("notif");
+        return db;
+    }
+
+    @GetMapping("/getnotificationstoday")
+    List<Notification> getnotiftoday()
+    {
+        Date date= new Date();
+        List<Notification> db = notifRepo.findAllByDateOrderByIDDesc(date);
         return db;
     }
 
@@ -2129,13 +2746,27 @@ long l1= d.getTime();
 
 
     @GetMapping("/cancel/dd")
-    void cancelBid(@RequestParam String domain,@RequestParam Long auctionId)
+    @PreAuthorize("hasAuthority('APPROLE_Bid_DD')")
+    void cancelBidWeb(@RequestParam String domain,@RequestParam Long auctionId)
     {
         deleteTaskMap(domain);
       DBdetails db= repo.findByPlatformAndAuctionId("Dynadot",auctionId);
       db.setResult("Bid Cancelled");
       db.setScheduled(false);
       repo.save(db);
+        Date now=new Date();
+        String time = timeft.format(now);
+        Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bidding Cancelled of " + domain ));
+        saveAction("Bid Cancelled","UI List",getUser(),db,notification,true,domain,getUserName());
+
+    }
+    void cancelBidAction(DBdetails db,Long tg_id)
+    {
+        Date now=new Date();
+        String time = timeft.format(now);
+        Notification notification=notifRepo.save(new Notification(db.getPlatform(), time, "Bidding Cancelled of " + db.getDomain() ));
+        saveAction("Bid Cancelled","CPanel",db,notification,true,db.getDomain(),tg_id);
+
     }
 
     @GetMapping("/returnalllive")
@@ -2153,8 +2784,16 @@ long l1= d.getTime();
     @GetMapping("/detectlive")
     List<LiveDetails> detectLive()
     {
-        return liveRepo.findByLiveTrueOrderByIdDesc();
+        return liveRepo.findAllByOrderByESTDesc(); //liveRepo.findByLiveTrueOrderByIdDesc();
     }
+
+    @GetMapping("/detectliveupdated")
+    List<LiveDetails> detectLiveUpdated()
+    {
+        refreshDDLive();
+        return liveRepo.findAllByOrderByESTDesc(); //liveRepo.findByLiveTrueOrderByIdDesc();
+    }
+
 
     @GetMapping("/set")
     LiveMap setWrap()
@@ -2661,9 +3300,10 @@ break;
         map=lm.getMap();
 
         Date date= new Date();
+        String addtime= ft1.format(date);
         date.setHours(date.getHours()+6);
         Long time= date.getTime();
-        ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder");
+        ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder,registrar,registry_expired");
         List<LiveDetails> list = rl.getAuction_list();
         int n= list.size();
         int l=0;
@@ -2681,6 +3321,8 @@ break;
 
                         map.put(ld.getDomain().toLowerCase(), auction_id);
                         String time_left = relTimelive(ld.getEnd_time_stamp());
+
+                        ld.setAddtime(addtime);
                         String est = ld.getEstibot_appraisal();
                         Integer EST = Integer.valueOf(est.substring(1, est.length() - 3));
                         ld.setEST(EST);
@@ -2690,9 +3332,14 @@ break;
                         boolean highlight=isHighlight(ld.getDomain(),EST,settings);
                         ld.setHighlight(highlight);
                         if(highlight) {
-                            String domain=ld.getDomain(); String currbid=ld.getCurrent_bid_price(); int age=ld.getAge();
+                            String domain=ld.getDomain().toLowerCase(); String currbid=ld.getCurrent_bid_price(); int age=ld.getAge();
                             // Integer gdv= goDaddyFeign.getGDV("sso-key eoBX9S5CMVCy_BtxuibgTTSw5rVT2dwZWd9:EqNYRpNbEvuY6ATi2UNpUm",domain).getGovalue();
+                            if(!taskmap.containsKey(domain))
                             sendLiveI(time_left,domain,ld.getCurrent_bid_price(),ld.getAge(),EST, ld.getAuction_id());
+                            else
+                            {
+                                sendLiveI(time_left,domain,ld.getCurrent_bid_price(),ld.getAge(),EST, ld.getAuction_id(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
+                            }
 
                         }
                         liveRepo.save(ld);
@@ -2790,13 +3437,13 @@ break;
         {
            /* LiveMap lm = liveMaprepo.findById(1).get();
             Map<String,Long> map= lm.getMap();*/
-            ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder");
+            ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder,registrar,registry_expired");
             LiveFilterSettings settings= settingsRepo.findById(1).get();
 
             List<LiveDetails> list = rl.getAuction_list();
             int n= list.size();
             Date date= new Date();
-
+            Map<String,Long> map1= new HashMap<>(map);
             logger.info("Detect Live running "+ft1.format(date));
             for(int i=0;i<n;i++)
             {
@@ -2824,9 +3471,20 @@ break;
                                 String tld=dom[0],sld=dom[1];
                                 if(sld.equalsIgnoreCase("com")) {
                                     String leads = getLeads(tld);
+                                    if(!taskmap.containsKey(domain))
                                     sendLive(time_left, domain, ld.getCurrent_bid_price(), ld.getAge(), EST, ld.getAuction_id(), leads);
+                                else
+                                    {
+                                        sendLive(time_left, domain, ld.getCurrent_bid_price(), ld.getAge(), EST, ld.getAuction_id(), leads,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
+                                    }
                                 }
-                            else sendLive(time_left, domain, ld.getCurrent_bid_price(), ld.getAge(), EST, ld.getAuction_id());
+                            else {
+                                    if(!taskmap.containsKey(domain))
+                                        sendLive(time_left, domain, ld.getCurrent_bid_price(), ld.getAge(), EST, ld.getAuction_id());
+                                    else {
+                                        sendLive(time_left, domain, ld.getCurrent_bid_price(), ld.getAge(), EST,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(), ld.getAuction_id());
+                                    }
+                            }
 
                             }
                         //Object obj= telegram.sendAlert(-1001814695777L,text);
@@ -2846,12 +3504,91 @@ break;
                             logger.info(e.getMessage()+" "+ ld.getDomain());
                         }
                     }
+                    else {map1.remove(domain);}
                 }
 
             }
             sendSummary();
+
+            if(!map1.isEmpty())
+            for (Map.Entry<String,Long> mapElement : map1.entrySet())
+            {
+                Long value = mapElement.getValue();
+                try {
+                    liveRepo.deleteByAuctionid(value);
+                }
+                catch(Exception e)
+                {
+                    logger.info(e.getMessage());
+                }
+            }
            // liveMaprepo.save(lm);
         }
+    }
+
+
+    @GetMapping("/stoplivedyna")
+    void stoplivedyna()
+    {
+        LiveFilterSettings settings= settingsRepo.findById(1).get();
+        map.clear();
+        Optional<LiveMap> o= liveMaprepo.findById(2);
+        LiveMap lm;
+        if(o.isEmpty())
+        {
+            lm= new LiveMap(2);
+        }
+        else
+            lm=o.get();
+        Map<String,Long> map1= lm.getMap();
+        map1.clear();
+        Date date= new Date();
+        String addtime=ft1.format(date);
+
+
+        date.setHours(date.getHours()+24);
+        liveRepo.deleteAll();
+        Long time= date.getTime();
+        date.setHours(date.getHours()-6);
+        Long time1= date.getTime();
+        ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder,registrar,registry_expired"
+        );
+        List<LiveDetails> list = rl.getAuction_list();
+        int n= list.size();
+        int l=0;
+        for(int i=0;i<n;i++)
+        {
+            LiveDetails ld= list.get(i);
+            Long auction_id= ld.getAuction_id();
+            int bids = ld.getBids();
+            Long endtime= ld.getEnd_time_stamp();
+            if(bids>0&&endtime<=time&&endtime>=time1)
+            {
+                if(!map1.containsKey(ld.getDomain().toLowerCase()))
+                {
+                    try {
+                        map1.put(ld.getDomain().toLowerCase(), auction_id);
+                        String time_left = relTimelive(ld.getEnd_time_stamp());
+                        Integer EST = Integer.valueOf(ld.getEstibot_appraisal().substring(1, ld.getEstibot_appraisal().length() - 3));
+                        ld.setEST(EST);
+                        ld.setTime_left(time_left);ld.setAddtime(addtime);
+                        l = Math.max(l, ld.getDomain().length());
+                        ld.setHighlight(isHighlight(ld.getDomain(),EST,settings));
+                        ld.setEndList(true);
+                        liveRepo.save(ld);
+                    }
+                    catch(Exception e)
+                    {
+                        logger.info(e.getMessage());
+                    }
+                }
+
+            }
+        }
+        stopWatch.reset();
+        liveMaprepo.save(lm);
+        sendEndHighlights(l);
+        sendEndList(l);
     }
 
     public class StopLiveDyna implements Runnable {
@@ -2877,10 +3614,15 @@ break;
             Map<String,Long> map1= lm.getMap();
             map1.clear();
             Date date= new Date();
+            String addtime=ft1.format(date);
+
+
             date.setHours(date.getHours()+24);
             liveRepo.deleteAll();
             Long time= date.getTime();
-            ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder"
+            date.setHours(date.getHours()-6);
+            Long time1= date.getTime();
+            ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder,registrar,registry_expired"
             );
             List<LiveDetails> list = rl.getAuction_list();
             int n= list.size();
@@ -2891,7 +3633,7 @@ break;
                 Long auction_id= ld.getAuction_id();
                 int bids = ld.getBids();
                 Long endtime= ld.getEnd_time_stamp();
-                if(bids>0&&endtime<=time)
+                if(bids>0&&endtime<=time&&endtime>=time1)
                 {
                     if(!map1.containsKey(ld.getDomain().toLowerCase()))
                     {
@@ -2900,7 +3642,7 @@ break;
                             String time_left = relTimelive(ld.getEnd_time_stamp());
                             Integer EST = Integer.valueOf(ld.getEstibot_appraisal().substring(1, ld.getEstibot_appraisal().length() - 3));
                             ld.setEST(EST);
-                            ld.setTime_left(time_left);
+                            ld.setTime_left(time_left);ld.setAddtime(addtime);
                             l = Math.max(l, ld.getDomain().length());
                             ld.setHighlight(isHighlight(ld.getDomain(),EST,settings));
                             ld.setEndList(true);
@@ -3039,6 +3781,115 @@ break;
         }
 
     }
+
+    @GetMapping("/testlive")
+    void testttttt()
+    {
+        liveRepo.deleteByAuctionid(18668426l);
+    }
+    void refreshDDLive()
+    {
+        Map<String,Long> map1=new HashMap<>(map);
+        Date date= new Date();
+        String addtime= ft1.format(date);
+        //if(date.getTimezoneOffset()==0)
+        {
+            if(date.getHours()<=20&&date.getMinutes()<=30)
+            {
+                date.setHours(20);date.setMinutes(30);
+            }
+            else
+            {
+                date.setDate(date.getDate()+1);date.setHours(20);date.setMinutes(30);
+            }
+        }
+        Long time= date.getTime();
+        ResponseLive rl = myFeignClient.getLiveDetails(key,"get_open_auctions","usd","expired,user,backorder,registrar,registry_expired");
+        List<LiveDetails> list = rl.getAuction_list();
+        int n= list.size();
+        int l=0;
+        logger.info(""+n);
+        for(int i=0;i<n;i++)
+        {
+            LiveDetails ld= list.get(i);
+            Long auction_id= ld.getAuction_id();
+            int bids = ld.getBids();
+            Long endtime= ld.getEnd_time_stamp();
+            if(bids>0&&endtime<=time)
+            {
+                    try {
+                        map1.remove(ld.getDomain().toLowerCase());
+                        String time_left = relTimelive(ld.getEnd_time_stamp());
+                        ld.setAddtime(addtime);
+                        String est = ld.getEstibot_appraisal();
+                        Integer EST = Integer.valueOf(est.substring(1, est.length() - 3));
+                        ld.setEST(EST);
+                        ld.setTime_left(time_left);
+                        ld.setLive(true);
+                        liveRepo.save(ld);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.info(e.getMessage()+" "+ ld.getDomain());
+                    }
+            }
+        }
+
+        if(!map1.isEmpty())
+        for (Map.Entry<String,Long> mapElement : map1.entrySet())
+        {
+            Long value = mapElement.getValue();
+            try {
+                liveRepo.deleteByAuctionid(value);
+            }
+            catch(Exception e)
+            {
+                logger.info(e.getMessage());
+            }
+        }
+        }
+
+    void sendListCurrent(long chat_id)
+    {
+        refreshDDLive();
+        int n=25;
+        //        time left   currbid, est, separators, space around separators
+        int t= n+    10+         7  +   6  +  3   +      6;
+        int d= 4096/t;
+        d=d-6;
+        String s=String.format("| %-"+(t-4)+"s |%n", "Dynadot List");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        s=s+ String.format("%-"+n+"s | %-10s | %-7s | %6s%n","Domain","Time Left", "Price","EST");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+
+        }
+        s=s+"\n\n";
+
+        List<LiveDetails> list=liveRepo.findAllByOrderByESTDesc();
+        int l=list.size();
+        int j=0;
+        while(l>0) {
+            for (int i = 0; i < l && i < d; i++) {
+                LiveDetails lnc = list.get(j);
+
+                j++;
+                s = s + String.format("%-"+n+"s | %-10s  | %-7s | %6d%n", lnc.getDomain(), lnc.getTime_left(),lnc.getCurrent_bid_price(), lnc.getEST());
+
+            }
+            // System.out.println(s);
+            telegram.sendAlert(chat_id,"<pre>"+s+"</pre>","HTML");
+            l=l-d;
+            s="";
+        }
+
+    }
+
     void sendHighlights(long chat_id)
     {
         int n=25;
@@ -3516,9 +4367,16 @@ break;
                 if(timeId1.equals(timeid))
                 {
                     if(Float.parseFloat(currbid)<=Float.parseFloat(maxbid))
-                    {
-                        Response_PlaceBid map = myFeignClientB.placeAuctionBids(key, "place_auction_bid", domain, bid, "usd");
-                        //LinkedHashMap map = (LinkedHashMap) obj;
+                    {Response_PlaceBid map;
+                        try{
+                        map = myFeignClientB.placeAuctionBids(key, "place_auction_bid", domain, bid, "usd");
+                        }
+                        catch(Exception e)
+                        {
+                            db.setResult("API Error Bid pb");
+                            repo.save(db);
+                            return;
+                        }   //LinkedHashMap map = (LinkedHashMap) obj;
                         String status = map.getStatus();
                         if (status.equals("success"))
                         {
@@ -3527,12 +4385,8 @@ break;
                             telegram.sendAlert(-1001763199668l,1004l,"Dynadot: Scheduled Bid PLACED for " + domain + " at price " + bid + " USD");
                             notifRepo.save(new Notification("Dynadot",time,"Scheduled Bid PLACED for " + domain + " at price " + bid + " USD"));
                             logger.info(time+": Scheduled Bid Placed of domain: " + domain+ " at price " + bid + " USD");
-                            d.setSeconds(d.getSeconds()+30);
-                            CheckOutbid checkOutbid= new CheckOutbid(domain,bid,maxbid);
-                            ScheduledFuture scheduledFuture= taskScheduler.scheduleAtFixedRate(checkOutbid,d,30000);
-                            checkOutbid.setScheduledFuture(scheduledFuture);
-                            updateTaskMap(domain,scheduledFuture,"co");
 
+                            boolean scheduleCO=true;
                             Auction_json aj = map.getAuction_details().getAuction_json();
                             if(Float.parseFloat(bid)>Float.parseFloat(maxbid))
                                 db.setBidAmount(bid);
@@ -3541,8 +4395,103 @@ break;
                             db.setCurrbid(aj.getCurrent_bid_price());
                             db.setEndTimepst(aj.getEnd_time());
                             db.setTime_left(relTime(aj.getEnd_time_stamp()));
-                            repo.save(db);
+                            sendWatchlist("Our Bid Placed",db.getTime_left(),domain,aj.getAccepted_bid_price(),maxbid,aj.getAge(),db.getEstibot(),aj.getAuction_id());
+                            if(db.getFastBid()&&(Float.valueOf(db.getFastBidAmount())>=Float.parseFloat(currbid))) {
+                                if (map.getAuction_details().getAuction_json().getIs_high_bidder() == false) {
+                                    db.setFast_i(db.getFast_i() + 1);
+                                    if(db.getFast_i()>db.getFast_n())
+                                    {
+                                        //fastBid
+                                        telegram.sendAlert(-1001763199668l,1004l,"Dynadot: Started Fast Bidding on " + domain);
+                                        notifRepo.save(new Notification("Dynadot",time,"Started Fast Bidding on " + domain));
+                                        logger.info(time+": Started Fast Bidding on domain: " + domain);
+                                        while(true)
+                                        {
+                                            bid=map.getAuction_details().getAuction_json().getAccepted_bid_price();
+                                            currbid=map.getAuction_details().getAuction_json().getCurrent_bid_price();
+                                            if(Float.parseFloat(currbid)<=Float.parseFloat(maxbid))
+                                            {
+                                                try{
+                                                    map = myFeignClientB.placeAuctionBids(key, "place_auction_bid", domain, bid, "usd");
+                                                }
+                                                catch(Exception e)
+                                                {
+                                                    db.setResult("API Error Bid pb Fast");
+                                                    db.setFast_i(0);
+                                                    repo.save(db);
+                                                    return;
+                                                }
+                                                status = map.getStatus();
+                                                if (status.equals("success")) {
+                                                    aj = map.getAuction_details().getAuction_json();
+                                                    if (Float.parseFloat(bid) > Float.parseFloat(maxbid))
+                                                        db.setBidAmount(bid);
+                                                    db.setCurrbid(aj.getCurrent_bid_price());
+                                                    if (aj.getIs_high_bidder()) {
+                                                        telegram.sendAlert(-1001763199668l, 1004l, "Dynadot: Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + aj.getCurrent_bid_price());
+                                                        notifRepo.save(new Notification("Dynadot", time, "Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + aj.getCurrent_bid_price()));
+                                                        logger.info(time + ": Stopped  Fast Bidding on domain: " + domain + " as we surpassed proxy at price: " + aj.getCurrent_bid_price());
+                                                        db.setFast_i(0);
+                                                        break;
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    String content = map.getContent();
+                                                    deleteTaskMap(domain);
+                                                    scheduleCO=false;
+                                                    db.setFast_i(0);
+                                                    telegram.sendAlert(-930742733l,"Dynadot: Scheduled Bid NOT PLACED for " + domain + " at price " + bid + " USD with Error Message: " + content);
+                                                    logger.info(time+": Bid not placed of domain: " + domain + " at price " + bid + " USD with Error Message: " + content);
+                                                    try {
+                                                        notifRepo.save(new Notification("Dynadot", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + bid + " USD with Error Message: " + content));
+                                                    }
+                                                    catch(Exception e)
+                                                    {
+                                                        logger.info(e.getMessage());
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                db.setCurrbid(currbid);
+                                                db.setResult("Outbid");
+                                                String time_left= relTimelive(aj.getEnd_time_stamp());
 
+                                                long age= aj.getAge();
+                                                String est=aj.getEstibot_appraisal();
+                                                sendOutbid("Outbid",time_left,domain,bid,maxbid,age,est, db.getAuctionId());
+
+                                                Date now= new Date();
+                                                time= timeft.format(now);
+                                                logger.info(time+": Dynadot: Domain: "+domain+" with our max price "+maxbid+" Outbid at price " + bid );
+                                                notifRepo.save(new Notification("Dynadot",time,"Domain: "+domain+" with our max price "+maxbid+" OUTBID at price " + bid ));
+
+                                                now.setMinutes(now.getMinutes() + 59);
+                                                ScheduledFuture res=taskScheduler.schedule(new GetResultdyna(domain), now);
+                                                updateTaskMap(domain,res,"gr");
+                                                db.setFast_i(0);
+                                                scheduleCO=false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    db.setFast_i(0);
+                                }
+                            }
+
+                            repo.save(db);
+                            if(scheduleCO)
+                            {
+                                d=new Date();
+                                d.setSeconds(d.getSeconds()+30);
+                                CheckOutbid checkOutbid= new CheckOutbid(domain,bid,maxbid);
+                                ScheduledFuture scheduledFuture= taskScheduler.scheduleAtFixedRate(checkOutbid,d,30000);
+                                checkOutbid.setScheduledFuture(scheduledFuture);
+                                updateTaskMap(domain,scheduledFuture,"co");
+                            }
                         }
                         else
                         {
@@ -3550,7 +4499,7 @@ break;
                             String time= timeft.format(d);
                             String content = map.getContent();
                             deleteTaskMap(domain);
-                            telegram.sendAlert(-1001763199668l,1004l,"Dynadot: Scheduled Bid NOT PLACED for " + domain + " at price " + bid + " USD with Error Message: " + content);
+                            telegram.sendAlert(-930742733l,"Dynadot: Scheduled Bid NOT PLACED for " + domain + " at price " + bid + " USD with Error Message: " + content);
                             logger.info(time+": Bid not placed of domain: " + domain + " at price " + bid + " USD with Error Message: " + content);
                             try {
                                 notifRepo.save(new Notification("Dynadot", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + bid + " USD with Error Message: " + content));

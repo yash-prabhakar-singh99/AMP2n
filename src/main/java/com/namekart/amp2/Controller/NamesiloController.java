@@ -1,5 +1,6 @@
 package com.namekart.amp2.Controller;
 
+import com.azure.spring.aad.AADOAuth2AuthenticatedPrincipal;
 import com.namekart.amp2.DotDBEntity.DotDbResponse;
 import com.namekart.amp2.Entity.*;
 import com.namekart.amp2.EstibotEntity.Estibot_Data;
@@ -7,25 +8,35 @@ import com.namekart.amp2.Feign.DotDBFeign;
 import com.namekart.amp2.Feign.GoDaddyFeign;
 import com.namekart.amp2.Feign.NamesiloFeign;
 import com.namekart.amp2.Feign.Telegram;
+import com.namekart.amp2.NamecheapEntity.Livencdb;
 import com.namekart.amp2.NamesiloEntities.*;
 import com.namekart.amp2.Repository.*;
+import com.namekart.amp2.SettingsEntity.FastBidSetting;
 import com.namekart.amp2.SettingsEntity.LiveFilterSettings;
 import com.namekart.amp2.Status;
 import com.namekart.amp2.TelegramEntities.EditMessage;
 import com.namekart.amp2.TelegramEntities.InlineKeyboardButton;
 import com.namekart.amp2.TelegramEntities.InlineKeyboardMarkup;
 import com.namekart.amp2.TelegramEntities.SendMessage;
+import com.namekart.amp2.UserEntities.Action;
+import com.namekart.amp2.UserEntities.User;
 import org.apache.commons.lang3.time.StopWatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -44,6 +55,8 @@ public class NamesiloController {
 
     String filler="\n",text1,textl,textli,textob,summary="";
     StopWatch stopWatch;
+
+
     public NamesiloController(AllController controller)
     {
         TimeZone utc= TimeZone.getTimeZone("UTC");
@@ -62,6 +75,24 @@ public class NamesiloController {
         text1="Namesilo"+filler+"\n";textob="Namesilo OUTBID!!"+filler+"\n";
         textl="Namesilo Live Detect"+filler+"\n";textli="Namesilo Initial List Detect"+filler+"\n";
         stopWatch=new StopWatch();
+
+    }
+
+    @Autowired
+    UserRepository userRepository;
+
+    User getUser()
+    {
+        return userRepository.findByEmail(getToken().getClaim("unique_name")+"");
+    }
+
+    AADOAuth2AuthenticatedPrincipal getToken()
+    {
+        return (AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+    String getUserName()
+    {
+        return (getToken().getClaim("unique_name")+"");
     }
     Logger logger = Logger.getLogger("Namesilo");
     @Autowired
@@ -92,6 +123,77 @@ public class NamesiloController {
     int t=60;
     String mute_unmute="\uD83D\uDD08/\uD83D\uDD07";
 
+    @Autowired
+    FastSettingsRepo fastSettingsRepo;
+
+    FastBidSetting fastBidSetting;
+
+    @Autowired
+    @Qualifier(value ="restTemplate1")
+    RestTemplate restTemplate;
+
+    @GetMapping("/checkhttps")
+    boolean isHttpsEnabled(@RequestParam String url) {
+        /*ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        String requestUrl = response.getHeaders().getFirst("location");
+        logger.info(requestUrl);
+        // Check if the URL starts with "https://" to determine if it's served over HTTPS
+        return requestUrl != null && requestUrl.toLowerCase().startsWith("https://");*/
+
+        try {
+            URI uri = new URI(url);
+            logger.info(uri.getScheme());
+            ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+
+            logger.info(uri.getScheme());
+            // Check the response status code to determine if it's served over HTTPS
+            return response.getStatusCode() == HttpStatus.OK && uri.getScheme().equals("https");
+        } catch (URISyntaxException | HttpClientErrorException e) {
+            // Handle URI parsing errors and 4xx/5xx response errors
+            return false;
+        }
+    }
+
+    @PostConstruct
+    void postConstruct()
+    {
+        Optional<FastBidSetting> op= fastSettingsRepo.findById("Namesilo");
+        if(!op.isPresent())
+        {
+            fastBidSetting=new FastBidSetting("Namesilo",4,1000);
+            fastSettingsRepo.save(fastBidSetting);
+        }
+    }
+
+    void setFastBidSetting(int n, int amount)
+    {
+        fastBidSetting.setFastBidAmount(amount);fastBidSetting.setFastN(n);
+        fastBidSetting=fastSettingsRepo.save(fastBidSetting);
+    }
+    @Autowired
+    ActionRepository actionRepository;
+
+    void saveAction(String action, String medium, User user, DBdetails dbdetails, Notification notification, boolean success, String domain, String userName)
+    {
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+    void saveAction(String action, String medium, String telegramGroup, DBdetails dbdetails, Notification notification, boolean success, String domain,Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,telegramGroup,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+
+    void saveAction(String action, String medium, DBdetails dbdetails, Notification notification, boolean success, String domain, Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+
     String liveFormata(String status, String timeLeft, String domain, Float minBid, String ourMaxBid, Integer EST)
     {
         if(ourMaxBid==null||ourMaxBid.isEmpty())
@@ -115,6 +217,7 @@ public class NamesiloController {
     {
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " ns "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " ns "+auctionId+" " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton(mute_unmute, "m" + " ns "+auctionId+" " + domain + " " + currbid));
@@ -122,9 +225,13 @@ public class NamesiloController {
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl(url);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " ns "+auctionId+" " + domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " ns "+auctionId+" " + domain + " " + currbid));
+
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -132,15 +239,20 @@ public class NamesiloController {
     {
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " ns "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " ns "+auctionId+" " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Refresh", "r" + " ns "+auctionId+" " + domain + " " + currbid));
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl(url);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " ns "+auctionId+" " + domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " ns "+auctionId+" " + domain + " " + currbid));
+
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -148,18 +260,22 @@ public class NamesiloController {
     {
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " ns "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " ns "+auctionId+" " + domain + " " + currbid));
         row.add(new InlineKeyboardButton("Watch", "w" + " ns " +auctionId+" "+ domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Track", "t" + " ns " +auctionId+" "+ domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Refresh", "r" + " ns "+auctionId+" " + domain + " " + currbid));
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
-        link.setUrl("https://www.dynadot.com/market/auction/" + domain);
+        link.setUrl(url);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " ns "+auctionId+" " + domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " ns "+auctionId+" " + domain + " " + currbid));
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -187,9 +303,26 @@ public class NamesiloController {
             text=text+"\n"+leads;
         telegram.sendKeyboard(new SendMessage(-1001763199668l,1016l,text,getKeyboardLive(domain,auctionId,minBid,url)));
     }
+    void sendLive(String timeLeft, String domain, Float minBid,Integer EST,String ourMaxBid,Long auctionId, String url)
+    {
+        String text=liveFormata("Live Detect",timeLeft,domain,minBid,ourMaxBid,EST);
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,1016l,text,getKeyboardLive(domain,auctionId,minBid,url)));
+    }
+    void sendLive(String timeLeft, String domain, Float minBid,Integer EST,Long auctionId, String url,String leads,String ourMaxBid)
+    {
+        String text=liveFormata("Live Detect",timeLeft,domain,minBid,ourMaxBid,EST);
+        if(leads!=null&&!leads.equals(""))
+            text=text+"\n"+leads;
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,1016l,text,getKeyboardLive(domain,auctionId,minBid,url)));
+    }
     void sendLiveI(String timeLeft, String domain, Float minBid,Integer EST,Long auctionId, String url)
     {
         String text=liveFormata("Initial Detect",timeLeft,domain,minBid,"",EST);
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,24112l,text,getKeyboardLive(domain,auctionId,minBid,url)));
+    }
+    void sendLiveI(String timeLeft, String domain, Float minBid,Integer EST,Long auctionId, String url,String ourMaxBid)
+    {
+        String text=liveFormata("Initial Detect",timeLeft,domain,minBid,ourMaxBid,EST);
         telegram.sendKeyboard(new SendMessage(-1001763199668l,24112l,text,getKeyboardLive(domain,auctionId,minBid,url)));
     }
 
@@ -210,6 +343,81 @@ public class NamesiloController {
         telegram.sendKeyboard(new SendMessage(-1001763199668l,1016l,text,getKeyboardLive(domain,auctionId,minBid,url)));
     }
 
+
+    @Scheduled(cron = "0 00 09 ? * *", zone = "IST")
+    void healthCheck()
+    {
+        boolean a=true,b=true;
+        String url = "https://www.namesilo.com/public/api/listAuctions?version=1&type=xml&key=7fcf313ace746555cff70389&statusId=2&typeId=3&pageSize=500&page=";
+        try {
+            ResponseEntity<SiloRespAucList> ress = getResponseRest(url + 1, 3, "auclist");
+            a = ress.getStatusCodeValue() != 200 ? false : true;
+        }
+        catch(Exception e)
+        {
+            a=false;
+        }
+         url = "https://www.namesilo.com/api/getAccountBalance?version=1&type=xml&key=7fcf313ace746555cff70389";
+        try {
+            try
+            {
+                Thread.sleep(2000);
+            }
+            catch(InterruptedException ie)
+            {
+                logger.info(ie.getMessage());
+            }
+            ResponseEntity<SiloCheckBal> ress = getResponseRest(url, 3, "checkbal");
+            b = ress.getBody().getReply().getBalance()< 100 ? false : true;
+            if(!b)
+            {
+                try
+                {
+                    Thread.sleep(2000);
+                }
+                catch(InterruptedException ie)
+                {
+                    logger.info(ie.getMessage());
+                }
+                String url1="https://www.namesilo.com/api/addAccountFunds?version=1&type=xml&key=7fcf313ace746555cff70389&amount=200&payment_id=1675159";
+                try {
+                    ResponseEntity<SiloCheckBal> res = getResponseRest(url1, 3, "addbal");
+                    if (res.getBody().getReply().getCode() != 300) {
+                        telegram.sendAlert(-1001763199668l, 44167l, "Not able to add balance in NS Wallet, Balance below $100");
+                    }
+                }
+                catch(Exception e)
+                {
+                    telegram.sendAlert(-1001763199668l, 44167l, "Might not been able to add balance in NS Wallet, Balance below $100");
+                }
+            }
+        }
+        catch(Exception e)
+        {
+            b=false;
+        }
+        int t=6+1+2;
+        String s = String.format("| %-" + (t - 4) + "s |%n", "Health NS");
+        for (int i = 0; i < t; i++) {
+            s = s + "-";
+        }
+        s = s + "\n\n";
+        s = s + String.format("%-3s | %3s%n", "API", "BAL");
+        for (int i = 0; i < t; i++) {
+            s = s + "-";
+        }
+        s = s + "\n\n";
+        s = s + String.format("%-3s | %3s%n",a?"OK":"NO",b?"OK":"NO");
+        telegram.sendAlert(-1001763199668l,44167l, "<pre>" + s + "</pre>", "HTML");
+
+    }
+
+    @GetMapping("/checkbalancens")
+    SiloCheckBal checkNSBalance()
+    {
+        String url = "https://www.namesilo.com/api/getAccountBalance?version=1&type=xml&key=7fcf313ace746555cff70389";
+        return (SiloCheckBal) getResponseRest(url, 3, "checkbal").getBody();
+    }
     ConcurrentMap<String, Status> taskmap;
     @Scheduled(cron = "0 05 08 ? * *", zone = "IST")
     void refreshTaskMap()
@@ -305,6 +513,16 @@ public class NamesiloController {
             else if(command.equals("renew"))
             {
                 ResponseEntity<SiloRespRenew> res = rest.getForEntity(url, SiloRespRenew.class);
+                return res;
+            }
+            else if(command.equals("checkbal"))
+            {
+                ResponseEntity<SiloCheckBal> res = rest.getForEntity(url, SiloCheckBal.class);
+                return res;
+            }
+            else if(command.equals("addbal"))
+            {
+                ResponseEntity<SiloAddBalance> res = rest.getForEntity(url, SiloAddBalance.class);
                 return res;
             }
         }
@@ -660,13 +878,14 @@ Boolean b=true;
                 InlineKeyboardButton button= list.get(j);
                 String data= button.getCallback_data();
                 String[] arr = data.split(" ");
-                arr[4]=currbid+"";
-                data="";
-                for(int k=0;k<arr.length;k++)
-                {
-                    data=arr[i]+" ";
+                if(arr.length>3) {
+                    arr[4] = currbid + "";
+                    data = "";
+                    for (int k = 0; k < arr.length; k++) {
+                        data = arr[i] + " ";
+                    }
+                    button.setCallback_data(data);
                 }
-                button.setCallback_data(data);
             }
         }
         return markup;
@@ -759,7 +978,7 @@ Boolean b=true;
         }
     }
 
-    void watchlistLive(long id, String domain, Boolean track)
+    void watchlistLive(long id, String domain, Boolean track, String chat_title, Long tg_id)
     {
         CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
         domain= domain.toLowerCase();
@@ -822,10 +1041,29 @@ Boolean b=true;
             if(track)
                 dBdetails.setTrack(true);
             repo.save(dBdetails);
+            Date now=new Date();
+            String time = timeft.format(now);
+            Notification notification=notifRepo.save(new Notification("Namesilo", time, "Domain Watchlisted " + domain ));
+            saveAction("Watchlisted","Bubble",chat_title,dBdetails,notification,true,domain,tg_id);
+
             controller.putESTinDBSingle(cf);
         }
     }
-    @GetMapping("/cancel/ns")
+    @GetMapping("/cancel/ns")@PreAuthorize("hasAuthority('APPROLE_Bid_NS')")
+    void cancelBidweb(@RequestParam String domain, @RequestParam Long auctionId)
+    {
+        logger.info(domain);
+        deleteTaskMap(domain);
+        DBdetails db= repo.findByPlatformAndAuctionId("Namesilo",auctionId);
+        db.setResult("Bid Cancelled");
+        db.setScheduled(false);
+        repo.save(db);
+        Date now=new Date();
+        String time = timeft.format(now);
+        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bidding Cancelled of " + domain ));
+        saveAction("Bid Cancelled","UI List",getUser(),db,notification,true,domain,getUserName());
+
+    }
     void cancelBid(@RequestParam String domain, @RequestParam Long auctionId)
     {
         logger.info(domain);
@@ -937,8 +1175,132 @@ Boolean b=true;
     }
 
 
-    @PostMapping("/bulkfetchns")
+    @PostMapping("/bulkfetchns")@PreAuthorize("hasAuthority('APPROLE_Watch')")
     List<DBdetails> bulkfetchns(@RequestBody FetchReq fetchReq)
+    {
+        List<String> ddlist= fetchReq.getDomains();
+        int a=0;
+        List<DBdetails> list= new ArrayList<>();
+        for(int i=0;i< ddlist.size();i++)
+        {
+            String domain= ddlist.get(i);
+            Optional<SiloAuctionDetails> op1= Optional.ofNullable(siloliverepo.findByDomainIgnoreCase(domain));
+            if(op1.isEmpty())
+            {
+                Date now=new Date();
+                String time = timeft.format(now);
+                telegram.sendAlert(-1001763199668l, 1005l, "Namesilo: "+ domain + " not fetched as no domain found in our database.");
+                notifRepo.save(new Notification("Namesilo", time,  domain + " not fetched as no domain found in our database."));
+                logger.info(time + domain + " not fetched as no domain found in our database.");
+
+            }
+            else
+            {
+                SiloAuctionDetails details1=op1.get();
+                Long id= details1.getNsid();
+                ResponseEntity<SiloRespAuc> res= rest.getForEntity("https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id, SiloRespAuc.class);
+                SiloAucReply reply= res.getBody().getReply();
+                if(reply.getCode()==300)
+                {
+                    SiloAuctionDetails details= reply.getBody();
+                    String endTime = details.getAuctionEndsOn();
+                    Float currbid = details.getCurrentBid();
+
+                    Date end = null;
+                    try {
+                        end = parser.parse(endTime);
+                        // if((end.getTimezoneOffset()==0&&Math.abs(end.getHours()-7)>2)||(end.getTimezoneOffset()==330&&Math.abs(end.getHours()-12)>2))
+                        // end.setHours(end.getHours()+7);
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                    }
+                    String endTimeist= ft1.format(end);
+                    Integer gdv=0;
+                    Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Namesilo",id));
+            /*if(op.isPresent())
+            {
+                gdv= op.get().getGdv();
+                if(gdv==null||gdv==0)
+                {
+                    Optional<SiloAuctionDetails> ad= Optional.ofNullable(siloliverepo.findByNsid(id));
+                    if(ad.isPresent())
+                    {
+                        gdv=ad.get().getGdv();
+                    }
+                }
+            }
+            else
+                gdv= siloliverepo.findByNsid(id).getGdv();
+*/
+
+                    String time_left= relTime(end);
+                    if(fetchReq.getWatch())
+                    {
+                        /*String text = text1 + domain + "\n \nTime Left: " + time_left + "\nCurrent Bid: " + currbid;
+                        List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+                        List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+                        row.add(new InlineKeyboardButton("Bid 50", "b" + " ns " + details.getNsid() + " " + domain + " " + currbid+" 50"));
+                        row.add(new InlineKeyboardButton("Bid", "b" + " ns " + details.getNsid() + " " + domain + " " + currbid));
+                        row1.add(new InlineKeyboardButton("Track", "t ns " + details.getNsid() + " " + domain));
+                        row1.add(new InlineKeyboardButton("Refresh", "r ns " + details.getNsid() + " " + domain));
+                        InlineKeyboardButton link= new InlineKeyboardButton("Link");
+                        link.setUrl(details1.getUrl());
+                        row1.add(link);
+
+                        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                        rows.add(row);rows.add(row1);
+                        InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
+                        Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                , text, inlineKeyboardMarkup));*/
+                        Float minNextBid=minNextBid(currbid);
+                        String url=op1.isEmpty()?"https://namesilo.com/marketplace":op1.get().getUrl();
+                        sendWatchlist("Watchlist",time_left,domain,minNextBid,"",details.getEST(),id,url);
+
+
+                    }
+                    DBdetails dBdetails = null;
+                    if (!op.isPresent()) {
+                        dBdetails = new DBdetails(domain,gdv, id,"Namesilo", String.valueOf(currbid),time_left, "expired", "", "", endTime, endTimeist,false,details1.getUrl());
+                    } else {
+                        dBdetails = op.get();
+                        dBdetails.setCurrbid(String.valueOf(currbid));
+                        dBdetails.setTime_left(time_left);
+                        dBdetails.setEndTimepst(endTime);
+                        dBdetails.setEndTimeist(endTimeist);
+                        // dBdetails.setGdv(gdv);
+                    }
+                    dBdetails.setEstibot(details.getEST());
+                    if(fetchReq.getWatch())
+                    {dBdetails.setWatchlist(true);
+                        Date now=new Date();
+                        String time = timeft.format(now);
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Domain Watchlisted " + domain ));
+                        saveAction("Watchlisted","UI",getUser(),dBdetails,notification,true,domain,getUserName());}
+                    list.add(dBdetails);
+                    repo.save(dBdetails);
+                }
+                else
+                {
+                    String finalDomain2 = domain;
+                    CompletableFuture.runAsync(()->{
+                        Date now= new Date();
+                        String time= timeft.format(now);
+                        //telegram.sendAlert(-1001763199668l,1005l,"Namesilo: Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail());
+                        logger.info(time+": Domain " + finalDomain2 + " not fetched with error: "+reply.getDetail());
+                        if(!reply.getBody().getErrors().isEmpty())
+                        {
+                            logger.info(time+": "+reply.getBody().getErrors().get(0).getMessage());
+                        }
+                        notifRepo.save(new Notification("Namesilo",time,"Domain " + finalDomain2 + " not fetched with error: "+reply.getDetail()));
+                    },threadPoolExecutor);
+                }
+            }
+        }
+        return list;
+
+    }
+
+    List<DBdetails> bulkfetchnsbot(FetchReq fetchReq, Long tg_id)
     {
         List<String> ddlist= fetchReq.getDomains();
         int a=0;
@@ -1032,7 +1394,12 @@ Boolean b=true;
                     }
                     dBdetails.setEstibot(details.getEST());
                     if(fetchReq.getWatch())
-                    dBdetails.setWatchlist(true);
+                    {dBdetails.setWatchlist(true);
+                        Date now=new Date();
+                        String time = timeft.format(now);
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Domain Watchlisted " + domain ));
+                        saveAction("Watchlisted","CPanel",dBdetails,notification,true,domain,tg_id);
+                    }
                     list.add(dBdetails);
                     repo.save(dBdetails);
                 }
@@ -1060,7 +1427,7 @@ Boolean b=true;
     //@Autowired
     AllController controller;
 
-    @PostMapping("/bulkschedulens")
+    @PostMapping("/bulkschedulens")@PreAuthorize("hasAuthority('APPROLE_Bid_NS')")
     List<Integer> bulkschedulens(@RequestBody List<List<String>> ddlist)
     {
         List<Integer> arr= new ArrayList<>();
@@ -1074,7 +1441,8 @@ Boolean b=true;
                 Date now=new Date();
                 String time = timeft.format(now);
                 telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + domain + " as no domain found in our database.");
-                notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for "  + domain + " as no domain found in our database."));
+                Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for "  + domain + " as no domain found in our database."));
+                saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                 logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as no domain found in our database.");
 
             }
@@ -1126,7 +1494,7 @@ Boolean b=true;
                                 String time = timeft.format(now);
                                 String time_left = relTime(finalEnd);
                                 logger.info(time + ": Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
-                                notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
+                                Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
                                 Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Namesilo", id));
                                 DBdetails dBdetails = null;
 
@@ -1147,6 +1515,7 @@ Boolean b=true;
                                 dBdetails.setScheduled(true);
 
                                 repo.save(dBdetails);
+                                saveAction("Bid Scheduled","UI",getUser(),dBdetails,notification,true,domain,getUserName());
 
 
                             }, threadPoolExecutor);
@@ -1159,7 +1528,8 @@ Boolean b=true;
                                 //Date now = new Date();
                                 String time = timeft.format(now);
                                 telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
-                                notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                                Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                                saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                                 logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
                             }, threadPoolExecutor);
 
@@ -1173,7 +1543,8 @@ Boolean b=true;
                             //Date now = new Date();
                             String time = timeft.format(now);
                             telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
-                            notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                            Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                            saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                             logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
                         }, threadPoolExecutor);
 
@@ -1191,7 +1562,8 @@ Boolean b=true;
                         {
                             logger.info(time+": "+reply.getBody().getErrors().get(0).getMessage());
                         }
-                        notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+                        Notification notification=notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+                        saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notification,false,domain,getUserName());
                     },threadPoolExecutor);
 
                 }
@@ -1202,7 +1574,7 @@ Boolean b=true;
         return arr;
     }
 
-    BulkScheduleResponse bulkschedulensbot(@RequestBody List<List<String>> ddlist)
+    BulkScheduleResponse bulkschedulensbot(@RequestBody List<List<String>> ddlist, Long tg_id)
     {
         List<Integer> arr= new ArrayList<>();
         BulkScheduleResponse bs=null;
@@ -1211,14 +1583,15 @@ Boolean b=true;
         for(int i=0;i< ddlist.size();i++)
         {
             int l1=ddlist.get(i).size();
-            String domain= ddlist.get(i).get(l1-2).toLowerCase();String price= ddlist.get(i).get(l1-1);
+            String domain= ddlist.get(i).get(0).toLowerCase();String price= ddlist.get(i).get(1);
             Optional<SiloAuctionDetails> op1= Optional.ofNullable(siloliverepo.findByDomainIgnoreCase(domain));
             if(op1.isEmpty())
             {
                 Date now=new Date();
                 String time = timeft.format(now);
                 telegram.sendAlert(-1001763199668l, 1005l, "Namesilo: Bid NOT SCHEDULED for " + domain + " as no domain found in our database.");
-                notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for "  + domain + " as no domain found in our database."));
+                Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for "  + domain + " as no domain found in our database."));
+                saveAction("Bid Scheduled","CPanel",repo.findTopByDomain(domain),notification,false,domain,tg_id);
                 logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as no domain found in our database.");
 
             }
@@ -1264,13 +1637,14 @@ Boolean b=true;
 
                             Date finalEnd = end;
                             String finalDomain = domain;
+                            int finalI = i;
                             CompletableFuture.runAsync(() -> {
                                 String endTimeist = ft1.format(finalEnd);
                                 telegram.sendAlert(-1001763199668l, 1005l, "Namesilo: Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
                                 String time = timeft.format(now);
                                 String time_left = relTime(finalEnd);
                                 logger.info(time + ": Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
-                                notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
+                                Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
                                 Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Namesilo", id));
                                 DBdetails dBdetails = null;
 
@@ -1288,7 +1662,37 @@ Boolean b=true;
                                     //dBdetails.setGdv(gdv);
                                 }
                                 dBdetails.setEstibot(details.getEST());
+                                dBdetails.setScheduled(true);
+                                List<String> list=ddlist.get(finalI);
+                                if(list.size()>2)
+                                {
+                                    if(list.size()==4)
+                                    {
+                                        int fast=Integer.valueOf(list.get(3));
+                                        if(fast>10)
+                                        {
+                                            dBdetails.setFastBidAmount(list.get(3));
+                                            dBdetails.setFast_n(fastBidSetting.getFastN());
+                                        }
+                                        else {
+                                            dBdetails.setFast_n(fast);
+                                            dBdetails.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                        }
+                                    }
+                                    else if(list.size()==5)
+                                    {
+                                        int fast=Integer.valueOf(list.get(3));
+                                        dBdetails.setFastBidAmount(list.get(4));
+                                        dBdetails.setFast_n(fast);
+                                    }
+                                    else if(list.size()==2)
+                                    {
+                                        dBdetails.setFast_n(fastBidSetting.getFastN());
+                                        dBdetails.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                    }
+                                }
                                 repo.save(dBdetails);
+                                saveAction("Bid Scheduled","CPanel",dBdetails,notification,true,domain,tg_id);
 
 
                             }, threadPoolExecutor);
@@ -1303,7 +1707,8 @@ Boolean b=true;
                                 //Date now = new Date();
                                 String time = timeft.format(now);
                                 telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
-                                notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                                Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                                saveAction("Bid Scheduled","CPanel",repo.findTopByDomain(domain),notification,false,domain,tg_id);
                                 logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
                             }, threadPoolExecutor);
 
@@ -1319,7 +1724,8 @@ Boolean b=true;
                             //Date now = new Date();
                             String time = timeft.format(now);
                             telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
-                            notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                            Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                            saveAction("Bid Scheduled","CPanel",repo.findTopByDomain(domain),notification,false,domain,tg_id);
                             logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
                         }, threadPoolExecutor);
 
@@ -1337,7 +1743,8 @@ Boolean b=true;
                         {
                             logger.info(time+": "+reply.getBody().getErrors().get(0).getMessage());
                         }
-                        notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+                        Notification notification=notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+                        saveAction("Bid Scheduled","CPanel",repo.findTopByDomain(domain),notification,false,domain,tg_id);
                     },threadPoolExecutor);
 
                 }
@@ -1464,8 +1871,7 @@ Boolean b=true;
         logger.info(""+date.getTimezoneOffset());
     }
 
-    @GetMapping("/schedulesinglens")
-    float scheduleSingleoutbid(@RequestParam Long id,@RequestParam String domain,@RequestParam Float bid)
+    float scheduleSingleoutbid(@RequestParam Long id,@RequestParam String domain,@RequestParam Float bid, String chat_title, Long tg_id)
     {
 
         CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
@@ -1513,7 +1919,7 @@ Boolean b=true;
                         String time = timeft.format(now);
                         String time_left = relTime(finalEnd);
                         logger.info(time + ": Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
-                        notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
                         Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Namesilo", id));
                         DBdetails dBdetails = null;
                         Optional<SiloAuctionDetails> op1=Optional.ofNullable(siloliverepo.findByNsid(id));
@@ -1535,6 +1941,7 @@ Boolean b=true;
                         dBdetails.setScheduled(true);
 
                         repo.save(dBdetails);
+                        saveAction("Bid Scheduled","Bubble",chat_title,dBdetails,notification,false,finalDomain,tg_id);
 
 
                     }, threadPoolExecutor);
@@ -1548,7 +1955,8 @@ Boolean b=true;
                         //Date now = new Date();
                         String time = timeft.format(now);
                         telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
-                        notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                        saveAction("Bid Scheduled","Bubble",chat_title,repo.findTopByDomain(finalDomain1),notification,false,finalDomain1,tg_id);
                         logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
                     }, threadPoolExecutor);
                     return minNextBid;
@@ -1562,7 +1970,8 @@ Boolean b=true;
                     //Date now = new Date();
                     String time = timeft.format(now);
                     telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
-                    notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                    Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                    saveAction("Bid Scheduled","Bubble",chat_title,repo.findTopByDomain(finalDomain3),notification,false,finalDomain3,tg_id);
                     logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
                 }, threadPoolExecutor);
                 return 2;
@@ -1581,6 +1990,259 @@ Boolean b=true;
                 logger.info(time+": "+reply.getBody().getErrors().get(0).getMessage());
             }
             notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+            },threadPoolExecutor);
+
+            return 1;
+        }
+    }
+    @GetMapping("/schedulesinglens")@PreAuthorize("hasAuthority('APPROLE_Bid_NS')")
+    float scheduleSingleWeb(@RequestParam Long id,@RequestParam String domain,@RequestParam Float bid)
+    {
+
+        CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
+
+        domain= domain.toLowerCase();
+        String url="https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id;
+        ResponseEntity<SiloRespAuc> res= getResponseRest(url,3,"auc");
+
+        //ResponseEntity<SiloRespAuc> res= rest.getForEntity("https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id, SiloRespAuc.class);
+        SiloAucReply reply= res.getBody().getReply();
+        if(reply.getCode()==300) {
+            SiloAuctionDetails details = reply.getBody();
+            String endTime = details.getAuctionEndsOn();
+            Date end = null;
+            try {
+                end = parser.parse(endTime);
+                //if((end.getTimezoneOffset()==0&&Math.abs(end.getHours()-7)>2)||(end.getTimezoneOffset()==330&&Math.abs(end.getHours()-12)>2))
+                //end.setHours(end.getHours() + 7);
+            } catch (ParseException p) {
+                logger.info(p.getMessage());
+            }
+            Date now = new Date();
+            if (details.getStatusId() != 3 && end.after(now)) {
+                Float currbid = details.getCurrentBid();
+                float minNextBid = minNextBid(currbid);
+                if (minNextBid <= bid) {
+
+                    if (end.getTime() - now.getTime() > 300000)
+                    {
+                        Date d = new Date(end.getTime() - 280000);
+                        ScheduledFuture task = taskScheduler.schedule(new PreCheck(domain, id, bid), d);
+                        enterTaskMap(domain, task, "pc");
+                    }
+                    else
+                    {
+                        end.setSeconds(end.getSeconds() - t);
+                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(domain, id, bid, endTime), end);
+                        enterTaskMap(domain, task, "pb");
+                    }
+                    Date finalEnd = end;
+                    String finalDomain = domain;
+                    CompletableFuture.runAsync(() -> {
+                        String endTimeist = ft1.format(finalEnd);
+                        telegram.sendAlert(-1001763199668l, 1005l, "Namesilo: Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
+                        String time = timeft.format(now);
+                        String time_left = relTime(finalEnd);
+                        logger.info(time + ": Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
+                        Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Namesilo", id));
+                        DBdetails dBdetails = null;
+                        Optional<SiloAuctionDetails> op1=Optional.ofNullable(siloliverepo.findByNsid(id));
+                        String urld=op1.isEmpty()?"https://namesilo.com/marketplace":op1.get().getUrl();
+                        if (!op.isPresent()) {
+                            dBdetails = new DBdetails(finalDomain, 0, id, "Namesilo", String.valueOf(currbid), time_left, "expired", String.valueOf(bid), "Bid Scheduled", endTime, endTimeist, false,urld);
+                        } else {
+                            dBdetails = op.get();
+                            dBdetails.setResult("Bid Scheduled");
+                            dBdetails.setBidAmount(String.valueOf(bid));
+                            dBdetails.setBidplacetime(endTimeist);
+                            dBdetails.setCurrbid(String.valueOf(currbid));
+                            dBdetails.setTime_left(time_left);
+                            dBdetails.setEndTimepst(endTime);
+                            dBdetails.setEndTimeist(endTimeist);
+                            //dBdetails.setGdv(gdv);
+                        }
+                        dBdetails.setEstibot(details.getEST());
+                        dBdetails.setScheduled(true);
+
+                        repo.save(dBdetails);
+                        saveAction("Bid Scheduled","UI List",getUser(),dBdetails,notification,true, finalDomain,getUserName());
+
+
+                    }, threadPoolExecutor);
+                    controller.putESTinDBSingle(cf);
+                    return 0;
+
+                } else {
+                    String finalDomain1 = domain;
+                    CompletableFuture.runAsync(() ->
+                    {
+                        //Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                        saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(finalDomain1),notification,false,finalDomain1,getUserName());
+                        logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
+                    }, threadPoolExecutor);
+                    return minNextBid;
+                }
+            }
+            else
+            {
+                String finalDomain3 = domain;
+                CompletableFuture.runAsync(() ->
+                {
+                    //Date now = new Date();
+                    String time = timeft.format(now);
+                    telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
+                    Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                    saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(finalDomain3),notification,false,finalDomain3,getUserName());
+                    logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
+                }, threadPoolExecutor);
+                return 2;
+            }
+        }
+        else
+        {
+            String finalDomain2 = domain;
+            CompletableFuture.runAsync(()->{
+                Date now= new Date();
+                String time= timeft.format(now);
+                telegram.sendAlert(-930742733l,"Namesilo: Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail());
+                logger.info(time+": Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid + "with error: "+reply.getDetail());
+                if(!reply.getBody().getErrors().isEmpty())
+                {
+                    logger.info(time+": "+reply.getBody().getErrors().get(0).getMessage());
+                }
+                Notification notification=notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+                saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(finalDomain2),notification,false,finalDomain2,getUserName());
+            },threadPoolExecutor);
+
+            return 1;
+        }
+    }
+
+    @GetMapping("/schedulesinglenslive")@PreAuthorize("hasAnyAuthority('APPROLE_Bid_NS','APPROLE_Live_Bid_NS')")
+    float scheduleSingleWebLive(@RequestParam Long id,@RequestParam String domain,@RequestParam Float bid)
+    {
+
+        CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
+
+        domain= domain.toLowerCase();
+        String url="https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id;
+        ResponseEntity<SiloRespAuc> res= getResponseRest(url,3,"auc");
+
+        //ResponseEntity<SiloRespAuc> res= rest.getForEntity("https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id, SiloRespAuc.class);
+        SiloAucReply reply= res.getBody().getReply();
+        if(reply.getCode()==300) {
+            SiloAuctionDetails details = reply.getBody();
+            String endTime = details.getAuctionEndsOn();
+            Date end = null;
+            try {
+                end = parser.parse(endTime);
+                //if((end.getTimezoneOffset()==0&&Math.abs(end.getHours()-7)>2)||(end.getTimezoneOffset()==330&&Math.abs(end.getHours()-12)>2))
+                //end.setHours(end.getHours() + 7);
+            } catch (ParseException p) {
+                logger.info(p.getMessage());
+            }
+            Date now = new Date();
+            if (details.getStatusId() != 3 && end.after(now)) {
+                Float currbid = details.getCurrentBid();
+                float minNextBid = minNextBid(currbid);
+                if (minNextBid <= bid) {
+
+                    if (end.getTime() - now.getTime() > 300000)
+                    {
+                        Date d = new Date(end.getTime() - 280000);
+                        ScheduledFuture task = taskScheduler.schedule(new PreCheck(domain, id, bid), d);
+                        enterTaskMap(domain, task, "pc");
+                    }
+                    else
+                    {
+                        end.setSeconds(end.getSeconds() - t);
+                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(domain, id, bid, endTime), end);
+                        enterTaskMap(domain, task, "pb");
+                    }
+                    Date finalEnd = end;
+                    String finalDomain = domain;
+                    CompletableFuture.runAsync(() -> {
+                        String endTimeist = ft1.format(finalEnd);
+                        telegram.sendAlert(-1001763199668l, 1005l, "Namesilo: Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
+                        String time = timeft.format(now);
+                        String time_left = relTime(finalEnd);
+                        logger.info(time + ": Bid SCHEDULED for " + finalDomain + " at price " + bid + " time " + endTime);
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid SCHEDULED for " + finalDomain + " at price " + bid + " at time " + endTime));
+                        Optional<DBdetails> op = Optional.ofNullable(repo.findByPlatformAndAuctionId("Namesilo", id));
+                        DBdetails dBdetails = null;
+                        Optional<SiloAuctionDetails> op1=Optional.ofNullable(siloliverepo.findByNsid(id));
+                        String urld=op1.isEmpty()?"https://namesilo.com/marketplace":op1.get().getUrl();
+                        if (!op.isPresent()) {
+                            dBdetails = new DBdetails(finalDomain, 0, id, "Namesilo", String.valueOf(currbid), time_left, "expired", String.valueOf(bid), "Bid Scheduled", endTime, endTimeist, false,urld);
+                        } else {
+                            dBdetails = op.get();
+                            dBdetails.setResult("Bid Scheduled");
+                            dBdetails.setBidAmount(String.valueOf(bid));
+                            dBdetails.setBidplacetime(endTimeist);
+                            dBdetails.setCurrbid(String.valueOf(currbid));
+                            dBdetails.setTime_left(time_left);
+                            dBdetails.setEndTimepst(endTime);
+                            dBdetails.setEndTimeist(endTimeist);
+                            //dBdetails.setGdv(gdv);
+                        }
+                        dBdetails.setEstibot(details.getEST());
+                        dBdetails.setScheduled(true);
+
+                        repo.save(dBdetails);
+                        saveAction("Bid Scheduled","UI List",getUser(),dBdetails,notification,true, finalDomain,getUserName());
+
+
+                    }, threadPoolExecutor);
+                    controller.putESTinDBSingle(cf);
+                    return 0;
+
+                } else {
+                    String finalDomain1 = domain;
+                    CompletableFuture.runAsync(() ->
+                    {
+                        //Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
+                        Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid));
+                        saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(finalDomain1),notification,false,finalDomain1,getUserName());
+                        logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextBid);
+                    }, threadPoolExecutor);
+                    return minNextBid;
+                }
+            }
+            else
+            {
+                String finalDomain3 = domain;
+                CompletableFuture.runAsync(() ->
+                {
+                    //Date now = new Date();
+                    String time = timeft.format(now);
+                    telegram.sendAlert(-930742733l, "Namesilo: Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
+                    Notification notification=notifRepo.save(new Notification("Namesilo", time, "Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended."));
+                    saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(finalDomain3),notification,false,finalDomain3,getUserName());
+                    logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain3 + " as auction has ended.");
+                }, threadPoolExecutor);
+                return 2;
+            }
+        }
+        else
+        {
+            String finalDomain2 = domain;
+            CompletableFuture.runAsync(()->{
+                Date now= new Date();
+                String time= timeft.format(now);
+                telegram.sendAlert(-930742733l,"Namesilo: Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail());
+                logger.info(time+": Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid + "with error: "+reply.getDetail());
+                if(!reply.getBody().getErrors().isEmpty())
+                {
+                    logger.info(time+": "+reply.getBody().getErrors().get(0).getMessage());
+                }
+                Notification notification=notifRepo.save(new Notification("Namesilo",time,"Bid NOT SCHEDULED for " + finalDomain2 + " at price " + bid+ "with error: "+reply.getDetail()));
+                saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(finalDomain2),notification,false,finalDomain2,getUserName());
             },threadPoolExecutor);
 
             return 1;
@@ -1756,19 +2418,145 @@ Boolean b=true;
                             telegram.sendAlert(-1001763199668l,1004l, "Namesilo: Scheduled Bid PLACED for " + domain + " at price " + minNextBid + " USD");
                             notifRepo.save(new Notification("Namesilo",time,"Scheduled Bid PLACED for " + domain + " at price " + minNextBid + " USD"));
                             logger.info(time+": Scheduled Bid Placed of domain: " + domain+ " at price " + minNextBid + " USD");
-                            d.setSeconds(d.getSeconds()+30);
-                            CheckOutbid checkOutbid= new CheckOutbid(domain,id,maxbid,minNextBid);
-
-                            ScheduledFuture scheduledFuture= taskScheduler.scheduleAtFixedRate(checkOutbid,d,30000);
-                            checkOutbid.setScheduledFuture(scheduledFuture);
                             if(resp.getBody().getReply().getBody().getBid()>maxbid)
                                 db.setBidAmount(String.valueOf(resp.getBody().getReply().getBody().getBid()));
                             db.setIsBidPlaced(true);
                             db.setResult("Bid Placed");
                             db.setCurrbid(String.valueOf(minNextBid));
-                            repo.save(db);
-                            updateTaskMap(domain,scheduledFuture,"co");
+                            boolean scheduleCO=true;
+                            if(db.getFastBid()&&(Float.valueOf(db.getFastBidAmount())>=minNextBid))
+                            {
+                                try
+                                {
+                                    Thread.sleep(2000);
+                                }
+                                catch(InterruptedException ie)
+                                {
+                                    logger.info(ie.getMessage());
+                                }
+                                 url="https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id;
+                                 res= getResponseRestB(url,4,"auc",domain,"pb",db);
+                                 reply= res.getBody().getReply();
+                                details = reply.getBody();
+                                endTime = details.getAuctionEndsOn();
+                                currbid = details.getCurrentBid();
+                                minNextBid = minNextBid(currbid);
+                                 if(!(reply.getBody().getLeaderUserId()==292467))
+                                 {
+                                     db.setFast_i(db.getFast_i()+1);
+                                     if(db.getFast_i()>db.getFast_n())
+                                     {
+                                         while(true)
+                                         {
+                                             if(currbid>maxbid)
+                                             {
+                                                 //notify
+                                                 String time_left="";
+                                                 String endTimeist="";
+                                                 Date end=null;
+                                                 try
+                                                 {
+                                                     end=parser.parse(endTime);
+                                                 }
+                                                 catch(ParseException p)
+                                                 {
+                                                     logger.info(p.getMessage());
+                                                 }
+                                                 time_left=relTime(end);
+                                                 sendOutbid("Outbid",time_left,domain,minNextBid,db.getBidAmount(),details.getEST(),id,db.getUrl());
 
+                                                 db.setCurrbid(String.valueOf(currbid));
+                                                 db.setTime_left(time_left);
+                                                 db.setEndTimepst(endTime);
+                                                 db.setEndTimeist(endTimeist);
+                                                 db.setResult("Outbid");
+                                                 Date now= new Date();
+                                                 now.setMinutes(now.getMinutes());
+                                                 ScheduledFuture task= taskScheduler.schedule(new GetResultNs(domain,id),now);
+                                                 updateTaskMap(domain,task,"gr");
+                                                 db.setFast_i(0);
+                                                 scheduleCO=false;
+                                                 break;
+                                             }
+                                             else
+                                             {
+                                                 try
+                                                 {
+                                                     Thread.sleep(2000);
+                                                 }
+                                                 catch(InterruptedException ie)
+                                                 {
+                                                     logger.info(ie.getMessage());
+                                                 }
+                                                 urlp="https://www.namesilo.com/public/api/bidAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id+"&bid="+minNextBid;
+                                                 resp= getResponseRestB(urlp,3,"bid",domain,"pb",db);
+                                                 if(resp.getBody().getReply().getCode()==300)
+                                                 {
+                                                     if(resp.getBody().getReply().getBody().getBid()>maxbid)
+                                                         db.setBidAmount(String.valueOf(resp.getBody().getReply().getBody().getBid()));
+                                                     db.setCurrbid(String.valueOf(minNextBid));
+                                                     url="https://www.namesilo.com/public/api/viewAuction?version=1&type=xml&key=7fcf313ace746555cff70389&auctionId="+id;
+                                                     try
+                                                     {
+                                                         Thread.sleep(2000);
+                                                     }
+                                                     catch(InterruptedException ie)
+                                                     {
+                                                         logger.info(ie.getMessage());
+                                                     }
+                                                     res= getResponseRestB(url,4,"auc",domain,"pb",db);
+                                                     reply= res.getBody().getReply();
+                                                     details = reply.getBody();
+                                                     endTime = details.getAuctionEndsOn();
+                                                     currbid = details.getCurrentBid();
+                                                     minNextBid = minNextBid(currbid);
+                                                     if(reply.getBody().getLeaderUserId()==292467)
+                                                     {
+                                                         db.setFast_i(0);
+                                                         break;
+                                                     }
+                                                 }
+                                                 else
+                                                 {
+                                                     d=new Date();
+                                                     time= timeft.format(d);
+                                                     String content = resp.getBody().getReply().getDetail()+" "+resp.getBody().getReply().getBody().getMessage();
+                                                     logger.info(time+": Bid not placed of domain: " + domain + " at price " + minNextBid + " USD with Error Message: " + content);
+                                                     try
+                                                     {
+                                                         notifRepo.save(new Notification("Namesilo", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + minNextBid + " USD with Error Message: " + content));
+                                                     }
+                                                     catch(Exception e)
+                                                     {
+                                                         logger.info(e.getMessage());
+                                                     }
+                                                     db.setIsBidPlaced(true);
+                                                     db.setResult("Bid Not Placed");
+                                                     db.setCurrbid(String.valueOf(minNextBid));
+                                                     deleteTaskMap(domain);
+                                                     scheduleCO=false;
+                                                 }
+
+                                             }
+                                         }
+                                     }
+                                 }
+                                 else
+                                 {
+                                     db.setFast_i(0);
+                                 }
+                            }
+                            repo.save(db);
+                            sendWatchlist("Our Bid Placed","05m",domain,minNextBid(minNextBid),db.getBidAmount(),db.getEstibot(),id,db.getUrl());
+                            if(scheduleCO)
+                            {
+                                d=new Date();
+                                d.setSeconds(d.getSeconds()+30);
+                                CheckOutbid checkOutbid= new CheckOutbid(domain,id,maxbid,minNextBid);
+                                ScheduledFuture scheduledFuture= taskScheduler.scheduleAtFixedRate(checkOutbid,d,30000);
+                                checkOutbid.setScheduledFuture(scheduledFuture);
+                                updateTaskMap(domain,scheduledFuture,"co");
+                            }
                         }
                         else
                         {
@@ -2238,6 +3026,8 @@ int i=0;
             boolean b=true;
             Date date = new Date();
             date.setHours(date.getHours() + 24);
+            Date date1 = new Date();
+            date1.setHours(date1.getHours() + 22);
             String domain1="";
             int n1=0;
             List<String> ests= new ArrayList<>();
@@ -2250,6 +3040,7 @@ int i=0;
                 //ResponseEntity<SiloRespAucList> ress = rest.getForEntity(url+page, SiloRespAucList.class);
                 ResponseEntity<SiloRespAucList> ress= getResponseRest(url+page,3,"auclist");
                 List<SiloAuctionDetails> al = ress.getBody().getReply().getBody();
+                logger.info(al.size()+"");
                 for (int i = 0; i < al.size(); i++) {
                     SiloAuctionDetails details = al.get(i);
                     String domain = details.getDomain().toLowerCase();
@@ -2266,8 +3057,9 @@ int i=0;
                         logger.info(p.getMessage());
                         continue;
                     }
-                    if (end.before(date))
+                    if (end.before(date)&&end.after(date1))
                     {
+                        logger.info("EL: "+domain);
                         lnsid=details.getNsid();
                         if (bid > openingbid) {
                             map1.put(details.getNsid(), domain);
@@ -2287,26 +3079,37 @@ int i=0;
                             }
                             catch(Exception e)
                             {
-                                e.printStackTrace();
+                                logger.info(e.getMessage());
                             }
                             if (regmap.contains(domain))
                             {
                                 logger.info("Found domain for renewal: " + domain);
                                 String url1 = "https://www.namesilo.com/api/renewDomain?version=1&type=xml&key=7fcf313ace746555cff70389&domain=" + domain + "&years=1";
                                 SiloRespRenew respRenew = rest.getForEntity(url1, SiloRespRenew.class).getBody();
-                                if (respRenew.getReply().getCode() == 300)
+                                if (respRenew.getReply().getCode() == 300) {
                                     logger.info("Renewed domain: " + domain);
-                                String text = "Namesilo Own-Check\nRenewed \n\n" + domain;
-                                try
-                                {
-                                    Object obj = telegram.sendAlert(//-856441586L
-                                            -1001763199668l,1016l, text);
+                                    String text = "Namesilo Own-Check\nRenewed \n\n" + domain;
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -1001763199668l, 1016l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
                                 }
-                                catch (Exception e)
+                                else
                                 {
-                                    logger.info(e.getMessage());
+
+                                    logger.info("Failed in renewing domain: " + domain+" , "+respRenew.getReply().getDetail());
+                                    String text = "Namesilo Own-Check\nFailed to Renewed \n\n" + domain+"\n\nError:"+respRenew.getReply().getMessage()+" , "+respRenew.getReply().getDetail();
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -930742733l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
                                 }
                             }
+
 
                         }
                         domain1=domain;
@@ -2428,7 +3231,7 @@ int i=0;
                             }
                             catch(Exception e)
                             {
-                               e.printStackTrace();
+                                logger.info(e.getMessage());
                             }
 
                             if (regmap.contains(domain)) {
@@ -2436,14 +3239,28 @@ int i=0;
                                 String url1 = "https://www.namesilo.com/api/renewDomain?version=1&type=xml&key=7fcf313ace746555cff70389&domain=" + domain + "&years=1";
                                 SiloRespRenew respRenew = rest.getForEntity(url1, SiloRespRenew.class).getBody();
                                 if (respRenew.getReply().getCode() == 300)
-                                {logger.info("Renewed domain: " + domain);
-                                String text = "Namesilo Own-Check\nRenewed \n\n" + domain;
-                                try {
-                                    Object obj = telegram.sendAlert(//-856441586L
-                                            -1001763199668l, 1016l, text);
-                                } catch (Exception e) {
-                                    logger.info(e.getMessage());
-                                }}
+                                {
+                                    logger.info("Renewed domain: " + domain);
+                                    String text = "Namesilo Own-Check\nRenewed \n\n" + domain;
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -1001763199668l, 1016l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
+                                }
+                                else
+                                {
+
+                                    logger.info("Failed in renewing domain: " + domain+" , "+respRenew.getReply().getDetail());
+                                    String text = "Namesilo Own-Check\nFailed to Renewed \n\n" + domain+"\n\nError:"+respRenew.getReply().getMessage()+" , "+respRenew.getReply().getDetail();
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -930742733l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
+                                }
                             }
 
                         }
@@ -2495,8 +3312,9 @@ int i=0;
                     int EST = data.getAppraised_value();
                     String time_left = relTimelive(end);
                     Float minNextBid = minNextBid(bid);
+                    if(!taskmap.containsKey(domain.toLowerCase()))
                     sendLiveI(time_left, domain, minNextBid, EST, details.getNsid(), details.getUrl());
-
+                    else sendLiveI(time_left, domain, minNextBid, EST, details.getNsid(), details.getUrl(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
                 }
                 siloliverepo.save(details);
             }
@@ -2506,6 +3324,8 @@ int i=0;
         {
             logger.info(e.getMessage());
         }
+        if(stopWatch.isStarted())
+        stopWatch.reset();
         stopWatch.start();
         summary="";
 
@@ -2536,7 +3356,11 @@ int i=0;
             }
         }
     }
-
+    @GetMapping("/getlivens")
+    List<SiloAuctionDetails> getLive()
+    {
+        return siloliverepo.findAllByOrderByESTDesc();//liveNcRepo.findByLiveTrueOrderByIddDesc();
+    }
     String dotdbkey="Token 6c2753c5bac47cd06cc087368fae3376";
     @Autowired
     DotDBFeign dotDBFeign;
@@ -2582,6 +3406,7 @@ int i=0;
         @Override
         public void run() {
 
+            //siloliverepo.findById()
             logger.info("Live Detect Service Ran");
             LiveFilterSettings settings = settingsRepo.findById(1).get();
             boolean b = true;
@@ -2607,6 +3432,7 @@ int i=0;
                         continue;
                     }
                     Date now = new Date();
+                    String addTime=ft1.format(date);
                     if (end.getTime() - now.getTime() >= 10800000) {
                         b = false;
                         break;
@@ -2633,16 +3459,30 @@ int i=0;
                                     logger.info(e.getMessage());
                                 }
                                 }
+                                else
+                                {
+
+                                    logger.info("Failed in renewing domain: " + domain+" , "+respRenew.getReply().getDetail());
+                                    String text = "Namesilo Own-Check\nFailed to Renewed \n\n" + domain+"\n\nError:"+respRenew.getReply().getMessage()+" , "+respRenew.getReply().getDetail();
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -930742733l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
+                                }
                             } else {
                                 String time_left = relTimelive(end);
+                                details.setTimeLeft(time_left);details.setAddTime(addTime);
                                 //Integer gdv= goDaddyFeign.getGDV("sso-key eoBX9S5CMVCy_BtxuibgTTSw5rVT2dwZWd9:EqNYRpNbEvuY6ATi2UNpUm",domain).getGovalue();
                                 //details.setGdv(gdv);
                                 Estibot_Data data = controller.getEstibotSync(domain);
+                                summary = summary + domain + "\n";
                                 Integer EST = 0;
                                 if (data != null) {
                                     EST = data.getAppraised_value();
                                     details.setEST(EST);
-                                    summary = summary + domain + "\n";
+
 
                                     String[] dom = domain.split("\\.", 2);
                                     boolean highlight = isHighlight(data.getDomain(), data, settings, dom);
@@ -2651,9 +3491,14 @@ int i=0;
                                         Float minNextBid = minNextBid(bid);
                                         if (dom[1].equalsIgnoreCase("com")) {
                                             String leads = getLeads(dom[0]);
+                                            if(!taskmap.containsKey(domain))
                                             sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl(), leads);
-                                        } else
+                                            else sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl(), leads,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
+                                        } else {
+                                            if(!taskmap.containsKey(domain))
                                             sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl());
+                                            else sendLive(time_left, domain, minNextBid, details.getEST(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(), details.getNsid(), details.getUrl());
+                                        }
                                     }
                                 }
                             }
@@ -2679,7 +3524,7 @@ int i=0;
                 if (!b)
                     break;
             }
-            if (!b) {
+            if (b) {
                 String url1 = "https://www.namesilo.com/public/api/listAuctions?version=1&type=xml&key=7fcf313ace746555cff70389&statusId=2&typeId=3&pageSize=500&page=";
                 //ResponseEntity<SiloRespAucList> ress1 = rest.getForEntity(url1+page, SiloRespAucList.class);
                 ResponseEntity<SiloRespAucList> ress1 = getResponseRest(url1 + page, 3, "auclist");
@@ -2703,6 +3548,8 @@ int i=0;
                         continue;
                     }
                     Date now = new Date();
+                    String addTime=ft1.format(date);
+
                     if (end.getTime() - now.getTime() >= 10800000) {
                         b = false;
                         break;
@@ -2718,16 +3565,32 @@ int i=0;
                                 SiloRespRenew respRenew = resren.getBody();
                                 //SiloRespRenew respRenew = rest.getForEntity(url2, SiloRespRenew.class).getBody();
                                 if (respRenew.getReply().getCode() == 300)
+                                {
                                     logger.info("Renewed domain: " + domain);
-                                String text = "Namesilo Own-Check\nRenewed \n\n" + domain;
-                                try {
-                                    Object obj = telegram.sendAlert(//-856441586L
-                                            -1001763199668l, 1016l, text);
-                                } catch (Exception e) {
-                                    logger.info(e.getMessage());
+                                    String text = "Namesilo Own-Check\nRenewed \n\n" + domain;
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -1001763199668l, 1016l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
+                                }
+                                else
+                                {
+
+                                    logger.info("Failed in renewing domain: " + domain+" , "+respRenew.getReply().getDetail());
+                                    String text = "Namesilo Own-Check\nFailed to Renewed \n\n" + domain+"\n\nError:"+respRenew.getReply().getMessage()+" , "+respRenew.getReply().getDetail();
+                                    try {
+                                        Object obj = telegram.sendAlert(//-856441586L
+                                                -930742733l, text);
+                                    } catch (Exception e) {
+                                        logger.info(e.getMessage());
+                                    }
                                 }
                             } else {
                                 String time_left = relTimelive(end);
+                                details.setTimeLeft(time_left);details.setAddTime(addTime);
+                                summary = summary + domain + "\n";
                                 Estibot_Data data = controller.getEstibotSync(domain);
                                 Integer EST = 0;
                                 if (data != null) {
@@ -2742,9 +3605,14 @@ int i=0;
                                         Float minNextBid = minNextBid(bid);
                                         if (dom[1].equalsIgnoreCase("com")) {
                                             String leads = getLeads(dom[0]);
-                                            sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl(), leads);
-                                        } else
-                                            sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl());
+                                            if(!taskmap.containsKey(domain))
+                                                sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl(), leads);
+                                            else sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl(), leads,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
+                                        } else {
+                                            if(!taskmap.containsKey(domain))
+                                                sendLive(time_left, domain, minNextBid, details.getEST(), details.getNsid(), details.getUrl());
+                                            else sendLive(time_left, domain, minNextBid, details.getEST(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(), details.getNsid(), details.getUrl());
+                                        }
                                     }
                                 }
                                 try {
@@ -2765,8 +3633,9 @@ int i=0;
                 System.out.println("Key = " + entry.getKey() +
                         ", Value = " + entry.getValue());*/
                 // liveMaprepo.save(live);
-                sendSummary();
+
             }
+            sendSummary();
         }
     }
 

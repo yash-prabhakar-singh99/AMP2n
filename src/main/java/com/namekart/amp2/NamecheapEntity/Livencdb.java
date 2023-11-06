@@ -7,9 +7,11 @@ import javax.persistence.Id;
 
 @Entity
 public class Livencdb {
-    @Id
+
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     Integer idd;
+
+    @Id
     String id;
     String addtime;
     Boolean endList;

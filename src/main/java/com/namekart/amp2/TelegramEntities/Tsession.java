@@ -1,10 +1,27 @@
 package com.namekart.amp2.TelegramEntities;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class Tsession {
     int permission;
     String prevCmd;
     String platform;
     String data;
+
+    Set<String> roles=new HashSet<>();
+
+    public Set<String> getRoles() {
+        return roles;
+    }
+
+    public void setRoles(Set<String> roles) {
+        this.roles = roles;
+    }
+
+    public Tsession(Set<String> roles) {
+        this.roles = roles;
+    }
 
     public Tsession(int permission, String prevCmd, String platform, String data) {
         this.permission = permission;

@@ -5,6 +5,7 @@ import javax.persistence.*;
 @Entity
 public class AuctionDetailDC {
     @Column(unique=true)
+    @Id
     Long auctionId;
     Long highBid, maxBid, numberOfBidders, minimumNextBid, bidIncrement;
     String name, endTime, highestBidder, type;
@@ -85,17 +86,17 @@ public class AuctionDetailDC {
         this.timeLeft = timeLeft;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(Integer id) {
         this.id = id;
     }
 
-    @Id
+
     @GeneratedValue(strategy= GenerationType.IDENTITY)
-    Long id;
+    Integer id;
 
 
     public AuctionDetailDC() {

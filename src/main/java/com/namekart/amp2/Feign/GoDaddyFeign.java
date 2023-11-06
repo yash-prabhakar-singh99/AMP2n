@@ -1,8 +1,6 @@
 package com.namekart.amp2.Feign;
 
-import com.namekart.amp2.GoDaddyEntities.DomainCheck;
-import com.namekart.amp2.GoDaddyEntities.DomainsCheckResp;
-import com.namekart.amp2.GoDaddyEntities.GDAppraisalResp;
+import com.namekart.amp2.GoDaddyEntities.*;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +12,9 @@ public interface GoDaddyFeign {
 
 @GetMapping("/appraisal/{domain}")
     GDAppraisalResp getGDV(@RequestHeader String Authorization, @PathVariable String domain);
+
+@PostMapping("/domains/purchase")
+PurchaseResp register(@RequestHeader String Authorization, @RequestBody PurchaseInfo info);
 
     @PostMapping("/domains/available")
     DomainsCheckResp checkDomains(@RequestHeader String Authorization,@RequestBody List<String> domains);

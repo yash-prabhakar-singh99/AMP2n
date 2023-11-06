@@ -13,11 +13,12 @@ public class SiloAuctionDetails {
 
 
     //@XmlElement(name="id")
+    @Id
     @Column(unique = true)
     @JacksonXmlProperty(localName = "id")
     Long nsid;
 
-    @Id
+
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     @JacksonXmlProperty(localName = "idd")
     //@XmlElement(name="idd")

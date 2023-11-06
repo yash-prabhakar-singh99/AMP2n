@@ -10,6 +10,7 @@ import java.util.List;
 public interface Siloliverepo extends JpaRepository<SiloAuctionDetails,Long> {
     SiloAuctionDetails findByNsid(Long nsid);
 
+    SiloAuctionDetails findById(Integer id);
     SiloAuctionDetails findByDomainIgnoreCase(String domain);
     List<SiloAuctionDetails> findByEndListTrueOrderByESTDesc();
     List<SiloAuctionDetails> findAllByOrderByESTDesc();

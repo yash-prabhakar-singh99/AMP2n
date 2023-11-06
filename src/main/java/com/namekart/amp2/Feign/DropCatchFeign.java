@@ -32,7 +32,11 @@ public interface DropCatchFeign {
 
     @GetMapping("/v2/auctions?Types=PrivateSeller&Types=PreRelease")
     ResponseEntity<ResponseAuctionList> getAuctionDetailslive1(@RequestHeader(value = "Authorization", required = true) String bearer, @RequestParam int size,@RequestParam boolean showAllActive,// @RequestParam("Types") String Types, @RequestParam("Types") String Types2,
+                                                               @RequestParam String sort, @RequestParam(name = "EndTime.Min") String startTime, @RequestParam(name = "EndTime.Max") String endTime, @RequestParam Boolean HasBids);
+    @GetMapping("/v2/auctions?Types=PrivateSeller&Types=PreRelease")
+    ResponseEntity<ResponseAuctionList> getAuctionDetailslive1(@RequestHeader(value = "Authorization", required = true) String bearer, @RequestParam int size,@RequestParam boolean showAllActive,// @RequestParam("Types") String Types, @RequestParam("Types") String Types2,
                                                                @RequestParam String sort, @RequestParam(name = "EndTime.Max") String endTime, @RequestParam Boolean HasBids);
+
     @GetMapping("/v2/history/auctions")
     ResponseEntity<ResponseAuctionresult> getAuctionResult(@RequestHeader(value = "Authorization", required = true) String bearer, @RequestParam String searchTerm, @RequestParam int size);
     @PostMapping("/v2/bids")

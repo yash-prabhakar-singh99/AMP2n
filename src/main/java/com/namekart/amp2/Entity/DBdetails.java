@@ -1,5 +1,7 @@
 package com.namekart.amp2.Entity;
 
+import com.namekart.amp2.UserEntities.Action;
+
 import javax.persistence.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -13,9 +15,92 @@ public class DBdetails {
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     Long id;
     String domain;
+
+    public boolean getFastBid() {
+        return fastBid;
+    }
+
+    public void setFastBid(boolean fastBid) {
+        this.fastBid = fastBid;
+    }
+
+    public String getFastBidAmount() {
+        return fastBidAmount;
+    }
+
+    public void setFastBidAmount(String fastBidAmount) {
+        this.fastBidAmount = fastBidAmount;
+    }
+
+    public int getFast_i() {
+        return fast_i;
+    }
+
+    public void setFast_i(int fast_i) {
+        this.fast_i = fast_i;
+    }
+
+    public int getFast_n() {
+        return fast_n;
+    }
+
+    public void setFast_n(int fast_n) {
+        this.fast_n = fast_n;
+    }
+
     String wonby;
     String wonat;
     Float myLastBid=0f;
+
+    boolean fastBid;
+
+    String fastBidAmount;
+
+    int fast_i=0; int fast_n=3;
+    public DBdetails(String domain) {
+        this.domain = domain;
+    }
+
+    @OneToMany(mappedBy="dbdetails")
+    List<Action> actions=new ArrayList<>();
+
+    public List<Action> getActions() {
+        return actions;
+    }
+
+    public void setActions(List<Action> actions) {
+        this.actions = actions;
+    }
+
+    int bothAccount=0;
+
+    String preBidAmount;
+
+    public int getBothAccount() {
+        return bothAccount;
+    }
+
+    boolean accountSwitched;
+
+    public boolean getAccountSwitched() {
+        return accountSwitched;
+    }
+
+    public void setAccountSwitched(boolean accountSwitched) {
+        this.accountSwitched = accountSwitched;
+    }
+
+    public void setBothAccount(int bothAccount) {
+        this.bothAccount = bothAccount;
+    }
+
+    public String getPreBidAmount() {
+        return preBidAmount;
+    }
+
+    public void setPreBidAmount(String preBidAmount) {
+        this.preBidAmount = preBidAmount;
+    }
 
     boolean account=false;
 

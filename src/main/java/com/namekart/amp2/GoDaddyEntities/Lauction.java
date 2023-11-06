@@ -19,6 +19,16 @@ public class Lauction {
     @XmlAttribute(name = "Name")
     private String name;
 
+    private boolean highlight;
+
+    public boolean isHighlight() {
+        return highlight;
+    }
+
+    public void setHighlight(boolean highlight) {
+        this.highlight = highlight;
+    }
+
     public String getAuctionEndTime() {
         return AuctionEndTime;
     }

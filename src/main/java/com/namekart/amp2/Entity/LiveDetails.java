@@ -1,14 +1,13 @@
 package com.namekart.amp2.Entity;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import javax.persistence.*;
 
 @Entity
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+
 public class LiveDetails {
 
-    @Id
+
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     Long id;
     Integer EST;
@@ -100,6 +99,8 @@ public class LiveDetails {
     }
 
     String platform;
+
+    @Id
     Long auction_id;
 
     String domain,current_bid_price, end_time,estibot_appraisal,utf_name;

@@ -10,5 +10,6 @@ import java.util.List;
 @Repository
 public interface LiveGDrepo extends JpaRepository<Lauction,Long> {
     List<Lauction> findByLiveTrueOrderByIddDesc();
+    List<Lauction> findAllByOrderByGDVDesc();
     Lauction findByName(String Name);
 }

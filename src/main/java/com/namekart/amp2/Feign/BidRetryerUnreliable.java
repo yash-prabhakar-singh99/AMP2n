@@ -9,13 +9,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.Date;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ScheduledFuture;
 import java.util.logging.Logger;
 
 @Component
-public class BidRetryer implements Retryer {
+public class BidRetryerUnreliable implements Retryer {
 
-    Logger logger= Logger.getLogger("Bid Retryer");
+    Logger logger= Logger.getLogger("Bid Retryer Unreliable");
 
     private int attempt = 1;
 
@@ -25,14 +24,12 @@ public class BidRetryer implements Retryer {
 
     AllController controller;
 
-
     Telegram telegram;
-    public BidRetryer(AllController controller,Telegram telegram) {
+    public BidRetryerUnreliable(AllController controller, Telegram telegram) {
         this.controller=controller;
         this.telegram=telegram;
         this.taskmap=controller.getTaskmap();
     }
-
 
     @Override
     public void continueOrPropagate(RetryableException e)
@@ -45,13 +42,12 @@ public class BidRetryer implements Retryer {
         if(date!=null)
              retryInterval= date.getTime()- now.getTime()+1000l;
         else
-            retryInterval= 1000l;
+            retryInterval= 15000l;
         logger.info("Retrying after "+retryInterval);
-        if(attempt++ == 4)
+        if(attempt++ == 3)
         {
             String url= e.request().url().split("\\?")[0];
             String platform="",action="",method="",domain="";
-
             if(url.contains("https://aftermarketapi.namecheap.com/client/api"))
             {
                 domain=e.request().requestTemplate().queries().get("name").toArray()[0]+"";
@@ -62,39 +58,6 @@ public class BidRetryer implements Retryer {
                     action="bid";
                 }
                 else action="fetch";
-            }
-            else if(url.contains("https://api.dropcatch.com"))
-        {
-            domain=e.request().requestTemplate().queries().get("searchTerm").toArray()[0]+"";
-            platform="Dropcatch";
-            method=taskmap.get(domain.toLowerCase()).getFutureTask();
-            if(url.contains("bids"))
-            {
-                action="bid";
-            }
-            else action="fetch";
-        }
-            else if(url.contains("https://api.dropcatch.com"))
-            {
-                domain=e.request().requestTemplate().queries().get("searchTerm").toArray()[0]+"";
-                platform="Dropcatch";
-                method=taskmap.get(domain.toLowerCase()).getFutureTask();
-                if(url.contains("bids"))
-                {
-                    action="bid";
-                }
-                else action="fetch";
-            }
-            else if(url.contains("https://api.dynadot.com/api3.json"))
-            {
-                domain=e.request().requestTemplate().queries().get("domain").toArray()[0]+"";
-                platform="Dynadot";
-                method=taskmap.get(domain.toLowerCase()).getFutureTask();
-                if(String.valueOf(e.request().requestTemplate().queries().get("domain").toArray()[0]).equals("get_auction_details"))
-                {
-                    action="Fetch";
-                }
-                else action="Bid";
             }
             logger.info("API failure in while performing "+action+" in method "+method+" of domain "+domain);
             telegram.sendAlert(chat_id,platform+": API failure in while performing "+action+" in method "+method+" of domain "+domain);
@@ -115,6 +78,6 @@ public class BidRetryer implements Retryer {
     @Override
     public Retryer clone()
     {
-        return new BidRetryer(controller,telegram);
+        return new BidRetryerUnreliable(controller,telegram);
     }
 }

@@ -1,13 +1,17 @@
 package com.namekart.amp2;
 
 
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -33,9 +37,15 @@ public class ThreadpoolTaskconfig {
     @Bean(name = "workStealingPool")
     public ForkJoinPool threadPoolExecutor() {
 
-        ForkJoinPool threadPoolExecutor = (ForkJoinPool) Executors.newWorkStealingPool(10);
+        ForkJoinPool threadPoolExecutor = (ForkJoinPool) Executors.newWorkStealingPool(15);
         return threadPoolExecutor;
 
+    }
+
+    @Bean(name = "restTemplate1")
+    public RestTemplate restTemplate(RestTemplateBuilder restTemplateBuilder)
+    {
+        return restTemplateBuilder.setConnectTimeout(Duration.ofSeconds(2)).setReadTimeout(Duration.ofSeconds(2)).build();
     }
 
 //    @Bean(name = "taskExecutor")

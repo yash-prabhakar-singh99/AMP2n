@@ -16,10 +16,25 @@ public class APIKeySettings {
         this.id = id;
     }
 
+    public APIKeySettings(int id, String nsKey, String dcId, String dcSecret, String ddKey, String ncKey, String gdKey, String gdSecret) {
+        this.id = id;
+        this.nsKey = nsKey;
+        this.dcId = dcId;
+        this.dcSecret = dcSecret;
+        this.ddKey = ddKey;
+        this.ncKey = ncKey;
+        this.gdKey = gdKey;
+        this.gdSecret = gdSecret;
+    }
+
+    public APIKeySettings() {
+    }
+
     @Id
     @GeneratedValue(strategy= GenerationType.IDENTITY)
     int id;
     String nsKey,dcId,dcSecret,ddKey,ncKey,gdKey,gdSecret;
+
 
 
     public String getNsKey() {

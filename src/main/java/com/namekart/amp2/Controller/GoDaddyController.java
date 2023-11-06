@@ -1,5 +1,6 @@
 package com.namekart.amp2.Controller;
 
+import com.azure.spring.aad.AADOAuth2AuthenticatedPrincipal;
 import com.namekart.amp2.Entity.*;
 import com.namekart.amp2.EstibotEntity.Estibot_Data;
 import com.namekart.amp2.Feign.GoDaddyFeign;
@@ -7,13 +8,18 @@ import com.namekart.amp2.Feign.Telegram;
 import com.namekart.amp2.GoDaddyEntities.*;
 import com.namekart.amp2.GoDaddySoapClient;
 import com.namekart.amp2.GoDaddySoapClient1;
+import com.namekart.amp2.NamesiloEntities.SiloAuctionDetails;
 import com.namekart.amp2.Repository.*;
+import com.namekart.amp2.SettingsEntity.FastBidSetting;
 import com.namekart.amp2.Status;
 import com.namekart.amp2.TelegramEntities.EditMessage;
 import com.namekart.amp2.TelegramEntities.InlineKeyboardButton;
 import com.namekart.amp2.TelegramEntities.InlineKeyboardMarkup;
 import com.namekart.amp2.TelegramEntities.SendMessage;
+import com.namekart.amp2.UserEntities.Action;
+import com.namekart.amp2.UserEntities.User;
 import com.namekart.amp2.stub.GetAuctionDetailsResponse;
+import feign.FeignException;
 import org.apache.commons.lang3.time.StopWatch;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +28,8 @@ import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -63,6 +71,13 @@ public class GoDaddyController {
     String summary="";
     StopWatch stopWatch;
     Map<String,Integer> mapt ;
+List<String> nameServers;
+    Consent consent;
+    AddressMailing addressMailing;
+    Contact contactAdmin;
+    Contact contactBilling;
+    Contact contacRegistrant;
+    Contact contactTech;
 
     public GoDaddyController(AllController controller)
     {
@@ -89,8 +104,76 @@ public class GoDaddyController {
         text1="GoDaddy"+filler+"\n";textob="GoDaddy OUTBID!!"+filler+"\n";
         textl="GoDaddy Live Track"+filler+"\n";
         stopWatch= new StopWatch();
+        agrKey=new ArrayList<>();
+        agrKey.add("DNRA");
+        nameServers=new ArrayList<>();
+        nameServers.add("ns1.dan.com");nameServers.add("ns2.dan.com");
+        consent=new Consent("","49.36.136.231",agrKey);
+         addressMailing= new AddressMailing("30 N Gould St Ste R","","Sheridan","US","82801","WY");
+        contactAdmin= new Contact(addressMailing,"team@name.ai","+1.4158003911","","DNS","Admin","","","+1.4158003911");
+         contactBilling= new Contact(addressMailing,"team@name.ai","+1.4158003911","","DNS","Admin","","","+1.4158003911");
+         contacRegistrant= new Contact(addressMailing,"team@name.ai","+1.4158003911","","DNS","Admin","","","+1.4158003911");
+         contactTech= new Contact(addressMailing,"team@name.ai","+1.4158003911","","DNS","Admin","","","+1.4158003911");
+
+    }
+    @Autowired
+    FastSettingsRepo fastSettingsRepo;
+    FastBidSetting fastBidSetting;
+    @PostConstruct
+    void postConstruct()
+    {
+        Optional<FastBidSetting> op= fastSettingsRepo.findById("GoDaddy");
+        if(!op.isPresent())
+        {
+            fastBidSetting=new FastBidSetting("GoDaddy",4,1000);
+            fastSettingsRepo.save(fastBidSetting);}
     }
 
+
+    void setFastBidSetting(int n, int amount)
+    {
+        fastBidSetting.setFastBidAmount(amount);fastBidSetting.setFastN(n);
+        fastBidSetting=fastSettingsRepo.save(fastBidSetting);
+    }
+
+    @Autowired
+    UserRepository userRepository;
+    @Autowired
+    ActionRepository actionRepository;
+
+    void saveAction(String action, String medium, User user, DBdetails dbdetails, Notification notification, boolean success, String domain, String userName)
+    {
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+    void saveAction(String action, String medium, String telegramGroup, DBdetails dbdetails, Notification notification, boolean success, String domain,Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,telegramGroup,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+
+    void saveAction(String action, String medium, DBdetails dbdetails, Notification notification, boolean success, String domain, Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+    User getUser()
+    {
+        return userRepository.findByEmail(getToken().getClaim("unique_name")+"");
+    }
+
+    AADOAuth2AuthenticatedPrincipal getToken()
+    {
+        return (AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+    String getUserName()
+    {
+        return (getToken().getClaim("unique_name")+"");
+    }
     @Autowired
     MyRepo myRepo;
 
@@ -207,6 +290,15 @@ public class GoDaddyController {
         }
     }
 
+List agrKey;
+    @Async
+    @GetMapping("/registerdomain")
+    PurchaseResp registerDomain(@RequestParam String domain,@RequestParam String time)
+    {
+        consent.setAgreedAt(time);
+        return goDaddyFeign.register(Authorization, new PurchaseInfo(consent, contactAdmin, contactBilling, contacRegistrant, contactTech, domain, nameServers, 1, false, true));
+
+    }
     @GetMapping("/getgdv/{domain}")
     GDAppraisalResp getGDV(@PathVariable String domain)
     {
@@ -273,11 +365,7 @@ logger.info(res.getAuctionEndTime());
     {taskScheduler.scheduleAtFixedRate(asyncCalss::try2,100);
     }
 
-    @GetMapping("/getlivegd")
-    List<Lauction> getLive()
-    {
-        return liveGDrepo.findByLiveTrueOrderByIddDesc();
-    }
+
 
     @GetMapping("/purchase")
     PlaceBid purchase(@RequestParam String domain, @RequestParam String price)
@@ -343,7 +431,7 @@ return CompletableFuture.completedFuture(true);
   //@Autowired
   AllController controller;
 
-  @PostMapping("/bulkfetchgodaddy")
+  @PostMapping("/bulkfetchgodaddy")@PreAuthorize("hasAuthority('APPROLE_Watch')")
   List<DBdetails> bulkfetch(@RequestBody FetchReq body)
   {
 List<String> ddlist= body.getDomains();
@@ -396,9 +484,15 @@ Boolean watch= body.getWatch();
 
                       Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
                               , text, getKeyboardWatch(domain, currbid)));
+                      Date now=new Date();
+                      String time = timeft.format(now);
+                      Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Domain Watchlisted " + domain ));
+                      saveAction("Watchlisted","UI",getUser(),dBdetails,notification,true,domain,getUserName());
+
                   }
                   myRepo.save(dBdetails);
                   list.add(dBdetails);
+
               } else {
                   Date now= new Date();
                   String time = timeft.format(now);
@@ -418,7 +512,86 @@ Boolean watch= body.getWatch();
       return list;
   }
 
-  @GetMapping("/testgd1")
+    List<DBdetails> bulkfetchbot(@RequestBody FetchReq body,Long tg_id)
+    {
+        List<String> ddlist= body.getDomains();
+        CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList(ddlist);
+        Boolean watch= body.getWatch();
+        List<DBdetails> list= new ArrayList<>();
+        int n= ddlist.size();
+        for(int i=0;i<n;i++)
+        {
+            String domain= ddlist.get(i).toLowerCase();
+            try {
+                GetAuctionsDetailRes res = goDaddySoapClient.getAuctionDetail(domain);
+                if (res.getIsValid().equals("True")) {
+                    String endTimepst = res.getAuctionEndTime();
+                    String endTime = endTimepst.substring(0, 19);
+
+                    logger.info(endTime);
+                    Date d = null;
+                    try {
+                        d = ft.parse(endTime);
+                        System.out.println(d);
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                        //continue;
+                    }
+
+                    String timeLeft = relTime(d);
+                    String endTimeist = ft1.format(d);
+                    Optional<DBdetails> op = Optional.ofNullable(myRepo.findByPlatformAndDomain("GoDaddy", domain));
+                    DBdetails dBdetails = null;
+                    if (!op.isPresent()) {
+                        dBdetails = new DBdetails(domain, "GoDaddy", formatPrice(res.getPrice()), null, timeLeft, null, null, res.getAuctionModel(), "", "", endTimepst, endTimeist, "", false);
+                    } else {
+                        dBdetails = op.get();
+                        dBdetails.setTime_left(timeLeft);
+                        dBdetails.setEndTimepst(endTimepst);
+                        dBdetails.setCurrbid(formatPrice(res.getPrice()));
+                        dBdetails.setEndTimeist(endTimeist);
+                        dBdetails.setAuctiontype(res.getAuctionModel());
+                        // dBdetails.setGdv(res.getValuationPrice());
+
+                    }
+                    //logger.info(res.getPrice());
+
+                    //logger.info(dBdetails.getCurrbid());
+                    if(watch) {
+                        dBdetails.setWatchlist(true);
+                        String currbid = dBdetails.getCurrbid();
+                        String text = liveFormatg("Watchlisted", timeLeft, domain, currbid, dBdetails.getBidAmount(), dBdetails.getEstibot(), dBdetails.getGdv());
+
+                        Object obj = telegram.sendKeyboard(new SendMessage(-1001887754426l
+                                , text, getKeyboardWatch(domain, currbid)));
+                        Date now=new Date();
+                        String time = timeft.format(now);
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Domain Watchlisted " + domain ));
+                        saveAction("Watchlisted","CPanel",dBdetails,notification,true,domain,tg_id);
+
+                    }
+                    myRepo.save(dBdetails);
+                    list.add(dBdetails);
+                } else {
+                    Date now= new Date();
+                    String time = timeft.format(now);
+                    notifRepo.save(new Notification("GoDaddy",time,"Domain details NOT FETCHED for " + domain + " with error: " + res.getMessage()));
+                    logger.info(time+": Domain details NOT FETCHED for " + domain + " with error: " + res.getMessage());
+                }
+            }
+            catch(Exception e)
+            {
+                Date now= new Date();
+                String time = timeft.format(now);
+                notifRepo.save(new Notification("GoDaddy",time,"Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage()));
+                logger.info(time+": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+            }
+        }
+        controller.putESTinDB(cf);
+        return list;
+    }
+
+    @GetMapping("/testgd1")
     void testgd()
     {
         for(int i=0;i<75;i++)
@@ -428,7 +601,7 @@ Boolean watch= body.getWatch();
         }
     }
 
-    @PostMapping("/bulkbidgodaddy")
+    @PostMapping("/bulkbidgodaddy")@PreAuthorize("hasAuthority('APPROLE_Bid_GD')")
     List<Integer> bulkbid(@RequestBody List<List<String>> ddlist)
     {
 
@@ -488,17 +661,19 @@ Boolean watch= body.getWatch();
                     dBdetails.setIsBidPlaced(true);
                     //telegram.sendAlert(-1001763199668l,"Dropcatch: BID SCHEDULED for domain: "+domain+ " for max price: "+bid+" at "+endTimeist);
 
-                    notifRepo.save(new Notification("GoDaddy",time,"Instant Bid PLACED for " + domain + " at price " + price + " USD at " + new Date()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Instant Bid PLACED for " + domain + " at price " + price + " USD at " + new Date()));
                     logger.info("Instant Bid Placed of domain: " + domain);
                     telegram.sendAlert(-1001763199668l,1005l,"GoDaddy: Instant Bid Placed of domain: " + domain);
+                    saveAction("Bid Instant","UI",getUser(),dBdetails,notification,true,domain,getUserName());
                 }
                 else
                 {
                     dBdetails.setResult("Bid Not Placed");
                     dBdetails.setIsBidPlaced(false);
-                    notifRepo.save(new Notification("GoDaddy",time,"Instant Bid NOT PLACED for " + domain + " at price " + price + " USD at " + new Date()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Instant Bid NOT PLACED for " + domain + " at price " + price + " USD at " + new Date()));
                     logger.info("Instant Bid Not Placed of domain: " + domain);
                     telegram.sendAlert(-834797664L,"GoDaddy: Instant Bid Not Placed of domain: " + domain);
+                    saveAction("Bid Instant","UI",getUser(),dBdetails,notification,true,domain,getUserName());
                 }
                 myRepo.save(dBdetails);
             }
@@ -585,8 +760,15 @@ List<Lauction> startlivegd()
                     String a=arr[0];
                     int a1 = Integer.valueOf(a.substring(0,a.length()-1));
                     char a2 = timeLeft.charAt(a.length()-1);
+                    String currbid = formatPriceLive(auction.getPrice());
+                    auction.setPrice(currbid);
                     auction.setTimeLeft(timeLeft);
                     ID=auction.getID();
+                    Integer gdv= Integer.valueOf(formatPriceLive(auction.getValuationPrice()));
+                    auction.setGDV(gdv);
+                    if(Integer.valueOf(auction.getBidCount())>1||gdv>1000) {
+                        auction.setHighlight(true);
+                    }
                     liveGDrepo.save(auction);
                     if(a2=='h'&&a1==l+1)
                     {
@@ -646,6 +828,7 @@ public class StopLive implements Runnable
     {
         scheduledFuture.cancel(true);
         map.clear();
+        liveGDrepo.deleteAll();
         stopWatch.reset();
         summary="";
     }
@@ -686,17 +869,25 @@ public class DetectLiveGD implements Runnable
                         map.add(id);
                         String timeLeft = auction.getTimeLeft().toLowerCase();
                         auction.setTimeLeft(timeLeft);
-                        String addTime= ft2.format(new Date());
+                        String addTime= ft1.format(new Date());
                         auction.setAddTime(addTime); auction.setLive(true);
-                        liveGDrepo.save(auction);
+
+                        String currbid = formatPriceLive(auction.getPrice());
+                        auction.setPrice(currbid);
                         summary=summary+domain+"\n";
                         Integer gdv= Integer.valueOf(formatPriceLive(auction.getValuationPrice()));
+                        auction.setGDV(gdv);
                         if(Integer.valueOf(auction.getBidCount())>1||gdv>1000) {
-                            String currbid = formatPriceLive(auction.getPrice());
-                            String text= liveFormatg("Live Detect",timeLeft,domain,currbid,"",0,gdv);
+                            auction.setHighlight(true);
+                            String text="";
+                            if(!taskmap.containsKey(domain))
+                            text= liveFormatg("Live Detect",timeLeft,domain,currbid,"",0,gdv);
+                            else
+                                text= liveFormatg("Live Detect",timeLeft,domain,currbid,myRepo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(),0,gdv);
                             Object obj = telegram.sendKeyboard(new SendMessage(//-1001833712484L
                                     -1001763199668l, 1013l, text, getKeyboardLive(domain,currbid)));
                         }
+                        liveGDrepo.save(auction);
                     }
                 }
                 p++;
@@ -714,7 +905,13 @@ public class DetectLiveGD implements Runnable
     }
 }
 
-    @PostMapping("/bulkbidschedulegodaddy")
+    @GetMapping("/getlivegd")
+    List<Lauction> getLive()
+    {
+        return liveGDrepo.findAllByOrderByGDVDesc();//liveNcRepo.findByLiveTrueOrderByIddDesc();
+    }
+
+    @PostMapping("/bulkbidschedulegodaddy")@PreAuthorize("hasAuthority('APPROLE_Bid_GD')")
     List<Integer> bulkbidschedule(@RequestBody List<List<String>> ddlist)
     {
         //List<Long> ids= new ArrayList<>();
@@ -772,7 +969,7 @@ public class DetectLiveGD implements Runnable
                         String endTimeist = ft1.format(d);
                         //d.setMinutes(d.getMinutes() - 4);
                         String bidplacetime = ft1.format(d);
-                        notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidplacetime));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidplacetime));
                         telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidplacetime);
 
                         logger.info("GoDaddy: Bid SCHEDULED for " + domain + " at price " + price + " time " + bidplacetime);
@@ -793,6 +990,7 @@ public class DetectLiveGD implements Runnable
                             dBdetails.setResult("Bid Scheduled");
                         }
                         dBdetails.setScheduled(true);
+                        saveAction("Bid Scheduled","UI",getUser(),dBdetails,notification,true,domain,getUserName());
 
                         // ids.add(dBdetails.getId());
                         myRepo.save(dBdetails);
@@ -801,7 +999,8 @@ public class DetectLiveGD implements Runnable
                         Date now = new Date();
                         String time = timeft.format(now);
                         telegram.sendAlert(-930742733l, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef);
-                        notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef));
+                        saveAction("Bid Scheduled","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef);
 
                     }
@@ -812,7 +1011,8 @@ public class DetectLiveGD implements Runnable
                     Date now= new Date();
                     String time= timeft.format(now);
                     telegram.sendAlert(-930742733l, "Bid not scheduled for domain: " + domain + " with error: " + res.getMessage());
-                    notifRepo.save(new Notification("GoDaddy",time,"Bid not scheduled for domain: " + domain + " with error: " + res.getMessage()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Bid not scheduled for domain: " + domain + " with error: " + res.getMessage()));
+                    saveAction("Bid Scheduled","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                     logger.info("Bid not scheduled for domain: " + domain + " with error: " + res.getMessage());
                 }
 
@@ -842,7 +1042,7 @@ public class DetectLiveGD implements Runnable
         controller.putESTinDB(cf);
         return list;
     }
-    BulkScheduleResponse bulkbidschedulebot(@RequestBody List<List<String>> ddlist)
+    BulkScheduleResponse bulkbidschedulebot(List<List<String>> ddlist, Long tg_id)
     {
         //List<Long> ids= new ArrayList<>();
         CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList1(ddlist);
@@ -854,8 +1054,8 @@ public class DetectLiveGD implements Runnable
         for(int i=0;i<n;i++)
         {
             int l1=ddlist.get(i).size();
-            String domain = ddlist.get(i).get(l1-2).toLowerCase();
-            String price = ddlist.get(i).get(l1-1);
+            String domain = ddlist.get(i).get(0).toLowerCase();
+            String price = ddlist.get(i).get(1);
 
             GetAuctionDetailsResponse g= goDaddySoapClient.getAuctionDetails(domain);
             String xmlString= g.getGetAuctionDetailsResult();
@@ -902,7 +1102,7 @@ public class DetectLiveGD implements Runnable
                         String endTimeist = ft1.format(d);
                         //d.setMinutes(d.getMinutes() - 4);
                         String bidplacetime = ft1.format(d);
-                        notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidplacetime));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidplacetime));
                         telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidplacetime);
 
                         logger.info("GoDaddy: Bid SCHEDULED for " + domain + " at price " + price + " time " + bidplacetime);
@@ -923,9 +1123,38 @@ public class DetectLiveGD implements Runnable
                             dBdetails.setResult("Bid Scheduled");
                         }
                         dBdetails.setScheduled(true);
-
+                        List<String> list1=ddlist.get(i);
+                        if(list1.size()>2)
+                        {
+                            if(list1.size()==4)
+                            {
+                                int fast=Integer.valueOf(list1.get(3));
+                                if(fast>10)
+                                {
+                                    dBdetails.setFastBidAmount(list1.get(3));
+                                    dBdetails.setFast_n(fastBidSetting.getFastN());
+                                }
+                                else {
+                                    dBdetails.setFast_n(fast);
+                                    dBdetails.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                }
+                            }
+                            else if(list1.size()==5)
+                            {
+                                int fast=Integer.valueOf(list1.get(3));
+                                dBdetails.setFastBidAmount(list1.get(4));
+                                dBdetails.setFast_n(fast);
+                            }
+                            else if(list.size()==2)
+                            {
+                                dBdetails.setFast_n(fastBidSetting.getFastN());
+                                dBdetails.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                            }
+                        }
                         // ids.add(dBdetails.getId());
                         myRepo.save(dBdetails);
+                        saveAction("Bid Scheduled","CPanel",dBdetails,notification,true,domain,tg_id);
+
                     }
                     else {
                         String text="Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef;
@@ -933,7 +1162,8 @@ public class DetectLiveGD implements Runnable
                         Date now = new Date();
                         String time = timeft.format(now);
                         telegram.sendAlert(-930742733l, "GoDaddy: Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef);
-                        notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef));
+                        saveAction("Bid Scheduled","CPanel",myRepo.findTopByDomain(domain),notification,false,domain,tg_id);
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextpricef);
 
                     }
@@ -946,7 +1176,8 @@ public class DetectLiveGD implements Runnable
                     Date now= new Date();
                     String time= timeft.format(now);
                     telegram.sendAlert(-930742733l, "GoDaddy: Bid not scheduled for domain: " + domain + " with error: " + res.getMessage());
-                    notifRepo.save(new Notification("GoDaddy",time,"Bid not scheduled for domain: " + domain + " with error: " + res.getMessage()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Bid not scheduled for domain: " + domain + " with error: " + res.getMessage()));
+                    saveAction("Bid Scheduled","CPanel",myRepo.findTopByDomain(domain),notification,false,domain,tg_id);
                     logger.info("Bid not scheduled for domain: " + domain + " with error: " + res.getMessage());
                 }
 
@@ -1043,16 +1274,20 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         String domain1=domain.replace(".","-");
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " gd gd " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " gd gd " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Refresh", "r" + " gd gd " + domain + " " + currbid));
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://in.godaddy.com/domainsearch/find?checkAvail=1&domainToCheck=" + domain1);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " gd gd "+ domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " gd gd "+ domain + " " + currbid));
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -1060,6 +1295,7 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
     {        String domain1=domain.replace(".","-");
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " gd gd " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " gd gd " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton(mute_unmute, "m" + " gd gd " + domain + " " + currbid));
@@ -1067,9 +1303,13 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://in.godaddy.com/domainsearch/find?checkAvail=1&domainToCheck=" + domain1);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " gd gd "+ domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " gd gd "+ domain + " " + currbid));
+
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -1078,6 +1318,7 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         String domain1=domain.replace(".","-");
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " gd gd " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " gd gd " + domain + " " + currbid));
         row.add(new InlineKeyboardButton("Watch", "w" + " gd gd " + domain + " " + currbid));
@@ -1086,10 +1327,13 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://in.godaddy.com/domainsearch/find?checkAvail=1&domainToCheck=" + domain1);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " gd gd "+ domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " gd gd "+ domain + " " + currbid));
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -1099,16 +1343,20 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         String domain1=domain.replace(".","-");
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " gd gd " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " gd gd " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Refresh", "r" + " gd gd " + domain + " " + currbid));
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://in.godaddy.com/domainsearch/find?checkAvail=1&domainToCheck=" + domain1);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " gd gd "+ domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " gd gd "+ domain + " " + currbid));
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -1117,6 +1365,7 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         String domain1=domain.replace(".","-");
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " gd gd " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " gd gd " + domain + " " + currbid));
         row1.add(new InlineKeyboardButton(mute_unmute, "m" + " gd gd " + domain + " " + currbid));
@@ -1124,9 +1373,13 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://in.godaddy.com/domainsearch/find?checkAvail=1&domainToCheck=" + domain1);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " gd gd "+ domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " gd gd "+ domain + " " + currbid));
+
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -1135,6 +1388,7 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         String domain1=domain.replace(".","-");
         List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
         List<InlineKeyboardButton> row1 = new ArrayList<InlineKeyboardButton>();
+        List<InlineKeyboardButton> row2 = new ArrayList<InlineKeyboardButton>();
         row.add(new InlineKeyboardButton("Bid 50", "b" + " gd gd " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid", "b" + " gd gd " + domain + " " + currbid));
         row.add(new InlineKeyboardButton("Watch", "w" + " gd gd " + domain + " " + currbid));
@@ -1143,10 +1397,13 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
         InlineKeyboardButton link = new InlineKeyboardButton("Link");
         link.setUrl("https://in.godaddy.com/domainsearch/find?checkAvail=1&domainToCheck=" + domain1);
         row1.add(link);
+        row2.add(new InlineKeyboardButton("Leads", "l" + " gd gd "+ domain + " " + currbid));
+        row2.add(new InlineKeyboardButton("Stats", "s" + " gd gd "+ domain + " " + currbid));
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(row);
         rows.add(row1);
+        rows.add(row2);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(rows);
         return inlineKeyboardMarkup;
     }
@@ -1545,13 +1802,14 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
                 InlineKeyboardButton button= list.get(j);
                 String data= button.getCallback_data();
                 String[] arr = data.split(" ");
-                arr[4]=currbid;
-                data="";
-                for(int k=0;k<arr.length;k++)
-                {
-                    data=arr[i]+" ";
+                if(arr.length>3) {
+                    arr[4] = currbid;
+                    data = "";
+                    for (int k = 0; k < arr.length; k++) {
+                        data = arr[i] + " ";
+                    }
+                    button.setCallback_data(data);
                 }
-                button.setCallback_data(data);
             }
         }
         return markup;
@@ -1663,7 +1921,7 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
             logger.info(e1.getMessage());
         }
     }
-    void watchlistLive(String domain,String id, Boolean track)
+    void watchlistLive(String domain,String id, Boolean track, String chat_title, Long tg_id)
     {
         CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
         domain=domain.toLowerCase();
@@ -1742,6 +2000,9 @@ String text="GD "+status+" - "+timeLeft+"\n"+domain+"\n"+"Price: "+minBid+" | Ou
                 if(track)
                     db.setTrack(true);
                 myRepo.save(db);
+                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Domain Watchlisted " + domain ));
+                saveAction("Watchlisted","Bubble",chat_title,db,notification,true,domain,tg_id);
+
                 controller.putESTinDBSingle(cf);
             }
             else
@@ -1858,7 +2119,7 @@ s=s+"]";
     {
        return  goDaddyFeign.checkDomains(Authorization,"abc.com");
     }
-    @GetMapping("/cancel/gd")
+    @GetMapping("/cancel/gd")@PreAuthorize("hasAuthority('APPROLE_Bid_GD')")
     void cancelBid(@RequestParam String domain)
     {
         deleteTaskMap(domain);
@@ -1866,6 +2127,11 @@ s=s+"]";
         db.setResult("Bid Cancelled");
         db.setScheduled(false);
         myRepo.save(db);
+        Date now=new Date();
+        String time = timeft.format(now);
+        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bidding Cancelled of " + domain ));
+        saveAction("Bid Cancelled","UI List",getUser(),db,notification,true,domain,getUserName());
+
     }
    /* @Scheduled(fixedRate = 120000)
     void refreshgdtrack()
@@ -2028,6 +2294,10 @@ s=s+"]";
                 /*if(track)
                     db.setTrack(true);*/
                 myRepo.save(db);
+
+                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Domain Watchlisted " + domain ));
+                saveAction("Watchlisted","UI",getUser(),db,notification,true,domain,getUserName());
+
             }
             else
             {
@@ -2058,8 +2328,8 @@ s=s+"]";
 
 
 
-    @GetMapping("/schedulesinglegd")
-    float scheduleSingleOutbid(@RequestParam String domain,@RequestParam String id,@RequestParam String price) {
+    @GetMapping("/schedulesinglegd")@PreAuthorize("hasAuthority('APPROLE_Bid_GD')")
+    float scheduleSingleOutbidWeb(@RequestParam String domain,@RequestParam String id,@RequestParam String price) {
         CompletableFuture<Estibot_Data> cf = controller.getEstibotDomain(domain);
         domain = domain.toLowerCase();
         GetAuctionDetailsResponse g = goDaddySoapClient.getAuctionDetails(domain);
@@ -2116,7 +2386,7 @@ s=s+"]";
                         //d.setMinutes(d.getMinutes() - 4);
                         String bidplacetime = ft1.format(finalD);
                         String time = timeft.format(now);
-                        notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime));
                         telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime);
 
                         logger.info("GoDaddy: Bid SCHEDULED for " + finalDomain + " at price " + price + " time " + bidplacetime);
@@ -2139,6 +2409,8 @@ s=s+"]";
                         dBdetails.setScheduled(true);
 
                         myRepo.save(dBdetails);
+                        saveAction("Bid Scheduled","UI List",getUser(),dBdetails,notification,false,finalDomain,getUserName());
+
                     });
                     controller.putESTinDBSingle(cf);
                     return 0;
@@ -2148,7 +2420,8 @@ s=s+"]";
                         Date now = new Date();
                         String time = ft1.format(now);
                         telegram.sendAlert(-930742733l, "GoDaddy: Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef);
-                        notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef));
+                        saveAction("Bid Scheduled","UI List",getUser(),myRepo.findTopByDomain(finalDomain1),notification,false,finalDomain1,getUserName());
                         logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef);
                     }, threadPoolExecutor);
                     return minNextpricef;
@@ -2161,7 +2434,8 @@ s=s+"]";
                     Date now = new Date();
                     String time = timeft.format(now);
                     telegram.sendAlert(-930742733l, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage());
-                    notifRepo.save(new Notification("GoDaddy", time, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage()));
+                    saveAction("Bid Scheduled","UI List",getUser(),myRepo.findTopByDomain(finalDomain2),notification,false,finalDomain2,getUserName());
                     logger.info("Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage());
                 }, threadPoolExecutor);
             }
@@ -2191,6 +2465,285 @@ s=s+"]";
     {
 
     }
+        return 0;
+    }
+
+    @GetMapping("/schedulesinglegdlive")@PreAuthorize("hasAnyAuthority('APPROLE_Bid_GD','APPROLE_Live_Bid_GD')")
+    float scheduleSingleOutbidWebLive(@RequestParam String domain,@RequestParam String id,@RequestParam String price) {
+        CompletableFuture<Estibot_Data> cf = controller.getEstibotDomain(domain);
+        domain = domain.toLowerCase();
+        GetAuctionDetailsResponse g = goDaddySoapClient.getAuctionDetails(domain);
+        String xmlString = g.getGetAuctionDetailsResult();
+        if(xmlString!=null)
+        {
+            JAXBContext jaxbContext;
+            GetAuctionsDetailRes res = null;
+            try {
+                jaxbContext = JAXBContext.newInstance(GetAuctionsDetailRes.class);
+
+                Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+
+
+                res = (GetAuctionsDetailRes) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
+
+                //System.out.println(employee);
+                if (res.getIsValid().equals("True")) {
+                    String currbid = formatPrice(res.getPrice());
+                    Float minNextpricef = Float.valueOf(currbid) + Float.valueOf(formatPrice(res.getBidIncrementAmount()));
+                    Float pricef = Float.valueOf(price);
+                    if (pricef >= minNextpricef) {
+                        String endTimepst = res.getAuctionEndTime();
+                        String endTime = endTimepst.substring(0, 19);
+                        logger.info(endTime);
+                        Date d = null;
+                        try {
+                            d = ft.parse(endTime);
+                            System.out.println(d);
+                        } catch (ParseException p) {
+                            logger.info(p.getMessage());
+
+                        }
+
+                        Date now = new Date();
+                        if (d.getTime() - now.getTime() < 270000) {
+                            d.setSeconds(d.getSeconds() - 10);
+                            ScheduledFuture place = taskScheduler.schedule(new Schedulebid(domain, price, endTime), d);
+                            enterTaskMap(domain, place, "pb");
+
+                        } else {
+                            Date d1 = new Date(d.getTime() - 270000);
+                            ScheduledFuture pre = taskScheduler.schedule(new Precheck(domain, price), d1);
+                            enterTaskMap(domain, pre, "pc");
+
+                        }
+                        Date finalD = d;
+                        String finalDomain = domain;
+                        GetAuctionsDetailRes finalRes = res;
+                        CompletableFuture.runAsync(() ->
+                        {
+                            String timeLeft = relTime(finalD);
+                            String endTimeist = ft1.format(finalD);
+                            //d.setMinutes(d.getMinutes() - 4);
+                            String bidplacetime = ft1.format(finalD);
+                            String time = timeft.format(now);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime));
+                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime);
+
+                            logger.info("GoDaddy: Bid SCHEDULED for " + finalDomain + " at price " + price + " time " + bidplacetime);
+
+
+                            Optional<DBdetails> op = Optional.ofNullable(myRepo.findByPlatformAndDomain("GoDaddy", finalDomain));
+                            DBdetails dBdetails = null;
+                            if (!op.isPresent()) {
+                                dBdetails = new DBdetails(finalDomain, "GoDaddy", currbid, null, timeLeft, null, null, finalRes.getAuctionModel(), price, "Bid Scheduled", endTimepst, endTimeist, bidplacetime, false);
+                            } else {
+                                dBdetails = op.get();
+                                dBdetails.setBidAmount(price);
+                                dBdetails.setTime_left(timeLeft);
+                                dBdetails.setEndTimepst(endTimepst);
+                                dBdetails.setEndTimeist(endTimeist);
+                                dBdetails.setCurrbid(currbid);
+                                dBdetails.setAuctiontype(finalRes.getAuctionModel());
+                                dBdetails.setResult("Bid Scheduled");
+                            }
+                            dBdetails.setScheduled(true);
+
+                            myRepo.save(dBdetails);
+                            saveAction("Bid Scheduled","UI List",getUser(),dBdetails,notification,false,finalDomain,getUserName());
+
+                        });
+                        controller.putESTinDBSingle(cf);
+                        return 0;
+                    } else {
+                        String finalDomain1 = domain;
+                        CompletableFuture.runAsync(() -> {
+                            Date now = new Date();
+                            String time = ft1.format(now);
+                            telegram.sendAlert(-930742733l, "GoDaddy: Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef));
+                            saveAction("Bid Scheduled","UI List",getUser(),myRepo.findTopByDomain(finalDomain1),notification,false,finalDomain1,getUserName());
+                            logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef);
+                        }, threadPoolExecutor);
+                        return minNextpricef;
+                    }
+
+                } else {
+                    String finalDomain2 = domain;
+                    GetAuctionsDetailRes finalRes1 = res;
+                    CompletableFuture.runAsync(() -> {
+                        Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage());
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage()));
+                        saveAction("Bid Scheduled","UI List",getUser(),myRepo.findTopByDomain(finalDomain2),notification,false,finalDomain2,getUserName());
+                        logger.info("Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage());
+                    }, threadPoolExecutor);
+                }
+                return 1;
+
+            }
+            catch (JAXBException e)
+            {
+                Date now= new Date();
+                String time= timeft.format(now);
+                notifRepo.save(new Notification("GoDaddy",time,"Bid NOT SCHEDULED for " + domain + " at price " + price+". See log for detail."));
+                telegram.sendAlert(-834797664L,"GoDaddy: Bid NOT SCHEDULED for " + domain + " at price " + price+". See log for detail.");
+                telegram.sendAlert(-834797664L,e.getMessage());
+                logger.info(e.getMessage());
+
+            }
+            catch(Exception e1)
+            {
+                Date now= new Date();
+                String time= timeft.format(now);
+                telegram.sendAlert(-834797664L,e1.getMessage());
+                notifRepo.save(new Notification("GoDaddy",time,"Bid NOT SCHEDULED for " + domain + " at price " + price+" with error: "+e1.getMessage()));
+                logger.info(e1.getMessage());
+            }
+        }
+        else
+        {
+
+        }
+        return 0;
+    }
+
+    float scheduleSingleOutbid(String domain,String id,String price, String chat_title, Long tg_id) {
+        CompletableFuture<Estibot_Data> cf = controller.getEstibotDomain(domain);
+        domain = domain.toLowerCase();
+        GetAuctionDetailsResponse g = goDaddySoapClient.getAuctionDetails(domain);
+        String xmlString = g.getGetAuctionDetailsResult();
+        if(xmlString!=null)
+        {
+            JAXBContext jaxbContext;
+            GetAuctionsDetailRes res = null;
+            try {
+                jaxbContext = JAXBContext.newInstance(GetAuctionsDetailRes.class);
+
+                Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+
+
+                res = (GetAuctionsDetailRes) jaxbUnmarshaller.unmarshal(new StringReader(xmlString));
+
+                //System.out.println(employee);
+                if (res.getIsValid().equals("True")) {
+                    String currbid = formatPrice(res.getPrice());
+                    Float minNextpricef = Float.valueOf(currbid) + Float.valueOf(formatPrice(res.getBidIncrementAmount()));
+                    Float pricef = Float.valueOf(price);
+                    if (pricef >= minNextpricef) {
+                        String endTimepst = res.getAuctionEndTime();
+                        String endTime = endTimepst.substring(0, 19);
+                        logger.info(endTime);
+                        Date d = null;
+                        try {
+                            d = ft.parse(endTime);
+                            System.out.println(d);
+                        } catch (ParseException p) {
+                            logger.info(p.getMessage());
+
+                        }
+
+                        Date now = new Date();
+                        if (d.getTime() - now.getTime() < 270000) {
+                            d.setSeconds(d.getSeconds() - 10);
+                            ScheduledFuture place = taskScheduler.schedule(new Schedulebid(domain, price, endTime), d);
+                            enterTaskMap(domain, place, "pb");
+
+                        } else {
+                            Date d1 = new Date(d.getTime() - 270000);
+                            ScheduledFuture pre = taskScheduler.schedule(new Precheck(domain, price), d1);
+                            enterTaskMap(domain, pre, "pc");
+
+                        }
+                        Date finalD = d;
+                        String finalDomain = domain;
+                        GetAuctionsDetailRes finalRes = res;
+                        CompletableFuture.runAsync(() ->
+                        {
+                            String timeLeft = relTime(finalD);
+                            String endTimeist = ft1.format(finalD);
+                            //d.setMinutes(d.getMinutes() - 4);
+                            String bidplacetime = ft1.format(finalD);
+                            String time = timeft.format(now);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime));
+                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Bid SCHEDULED for " + finalDomain + " at price " + price + " at time " + bidplacetime);
+
+                            logger.info("GoDaddy: Bid SCHEDULED for " + finalDomain + " at price " + price + " time " + bidplacetime);
+
+
+                            Optional<DBdetails> op = Optional.ofNullable(myRepo.findByPlatformAndDomain("GoDaddy", finalDomain));
+                            DBdetails dBdetails = null;
+                            if (!op.isPresent()) {
+                                dBdetails = new DBdetails(finalDomain, "GoDaddy", currbid, null, timeLeft, null, null, finalRes.getAuctionModel(), price, "Bid Scheduled", endTimepst, endTimeist, bidplacetime, false);
+                            } else {
+                                dBdetails = op.get();
+                                dBdetails.setBidAmount(price);
+                                dBdetails.setTime_left(timeLeft);
+                                dBdetails.setEndTimepst(endTimepst);
+                                dBdetails.setEndTimeist(endTimeist);
+                                dBdetails.setCurrbid(currbid);
+                                dBdetails.setAuctiontype(finalRes.getAuctionModel());
+                                dBdetails.setResult("Bid Scheduled");
+                            }
+                            dBdetails.setScheduled(true);
+
+                            myRepo.save(dBdetails);
+                            saveAction("Bid Scheduled","Bubble",chat_title,dBdetails,notification,true,finalDomain,tg_id);
+
+                        });
+                        controller.putESTinDBSingle(cf);
+                        return 0;
+                    } else {
+                        String finalDomain1 = domain;
+                        CompletableFuture.runAsync(() -> {
+                            Date now = new Date();
+                            String time = ft1.format(now);
+                            telegram.sendAlert(-930742733l, "GoDaddy: Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid NOT SCHEDULED for" + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef));
+                            saveAction("Bid Scheduled","Bubble",chat_title,myRepo.findTopByDomain(finalDomain1),notification,false,finalDomain1,tg_id);
+                            logger.info(time + ": Bid NOT SCHEDULED for " + finalDomain1 + " as bid value is lower than accepted bid of " + minNextpricef);
+                        }, threadPoolExecutor);
+                        return minNextpricef;
+                    }
+
+                } else {
+                    String finalDomain2 = domain;
+                    GetAuctionsDetailRes finalRes1 = res;
+                    CompletableFuture.runAsync(() -> {
+                        Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage());
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage()));
+                        saveAction("Bid Scheduled","Bubble",chat_title,myRepo.findTopByDomain(finalDomain2),notification,false,finalDomain2,tg_id);
+                        logger.info("Bid not scheduled for domain: " + finalDomain2 + " with error: " + finalRes1.getMessage());
+                    }, threadPoolExecutor);
+                }
+                return 1;
+
+            }
+            catch (JAXBException e)
+            {
+                Date now= new Date();
+                String time= timeft.format(now);
+                notifRepo.save(new Notification("GoDaddy",time,"Bid NOT SCHEDULED for " + domain + " at price " + price+". See log for detail."));
+                telegram.sendAlert(-834797664L,"GoDaddy: Bid NOT SCHEDULED for " + domain + " at price " + price+". See log for detail.");
+                telegram.sendAlert(-834797664L,e.getMessage());
+                logger.info(e.getMessage());
+
+            }
+            catch(Exception e1)
+            {
+                Date now= new Date();
+                String time= timeft.format(now);
+                telegram.sendAlert(-834797664L,e1.getMessage());
+                notifRepo.save(new Notification("GoDaddy",time,"Bid NOT SCHEDULED for " + domain + " at price " + price+" with error: "+e1.getMessage()));
+                logger.info(e1.getMessage());
+            }
+        }
+        else
+        {
+
+        }
         return 0;
     }
 
@@ -2425,41 +2978,136 @@ s=s+"]";
                     int pricei = pricec + inc;
                     String price = String.valueOf(pricei);
                     String bidcount = res.getBidCount();
-                    if (bidcount.equals("0")) {
-scheduleSingleCloseout(domain,maxprice,res);
-                    } else {
+                    if (bidcount.equals("0"))
+                    {
+                        scheduleSingleCloseout(domain,maxprice,res);
+                    }
+                    else
+                    {
                         if (pricec <= Integer.valueOf(maxprice)) {
                             if (endTime.equals(timeId)) {
-
                                 PlaceBid place = goDaddySoapClient.purchase(domain, price);
-
                                 DBdetails dBdetails = myRepo.findByPlatformAndDomain("GoDaddy", domain);
-
                                 logger.info(endTime);
-                       /* Date d = null;
-                        try {
-                            d = ft.parse(endTime);
-
-                        } catch (ParseException p) {
-                            logger.info(p.getMessage());
-                        }*/
                                 Date now = new Date();
                                 String time = timeft.format(now);
-                                if (place.getIsValid().equals("True")) {
-                                    now.setSeconds(now.getSeconds() + 30);
-                                    CheckOutbid checkOutbid = new CheckOutbid(domain, maxprice, price);
-                                    ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now, 40000);
-                                    checkOutbid.setScheduledFuture(scheduledFuture);
+                                if (place.getIsValid().equals("True"))
+                                {
+                                    boolean scheduleCO=true;
+
                                     dBdetails.setResult("Bid Placed");
                                     dBdetails.setIsBidPlaced(true);
+                                    dBdetails.setCurrbid(price);
                                     if (pricei > Integer.valueOf(maxprice))
                                         dBdetails.setBidAmount(price);
                                     notifRepo.save(new Notification("GoDaddy", time, "Scheduled Bid PLACED for " + domain + " at price " + price));
                                     logger.info(time + ": Scheduled Bid Placed of domain: " + domain + " at price " + price);
                                     telegram.sendAlert(-1001763199668l, 1004l, "GoDaddy: Scheduled Bid Placed of domain: " + domain + " at price " + price);
-                                    updateTaskMap(domain, scheduledFuture, "cb");
 
-                                } else {
+                                    if(place.getIsHighBid().equals("True"))
+                                    {
+                                        dBdetails.setFast_i(0);
+                                    }
+                                    else
+                                    {
+                                        if(dBdetails.getFastBid()&&Integer.valueOf(dBdetails.getFastBidAmount())>=pricei)
+                                        {
+                                            dBdetails.setFast_i(dBdetails.getFast_i()+1);
+                                            if(dBdetails.getFast_i()>dBdetails.getFast_n())
+                                            {
+                                                telegram.sendAlert(-1001763199668l,1004l,"GoDaddy: Started Fast Bidding on " + domain);
+                                                notifRepo.save(new Notification("GoDaddy",time,"Started Fast Bidding on " + domain));
+                                                logger.info(time+": Started Fast Bidding on domain: " + domain);
+                                                while(true)
+                                                {
+                                                    res = goDaddySoapClient.getAuctionDetail(domain);
+                                                    if (res.getIsValid().equals("True")) {
+                                                    endTimepst = res.getAuctionEndTime();
+                                                    endTime = endTimepst.substring(0, 19);
+                                                    price1 = formatPrice(res.getPrice());
+                                                    pricec = Integer.valueOf(price1);
+                                                    bidincrement = formatPrice(res.getBidIncrementAmount());
+                                                    inc = Integer.valueOf(bidincrement);
+                                                    pricei = pricec + inc;
+                                                    price = String.valueOf(pricei);
+                                                    if (pricec <= Integer.valueOf(maxprice)) {
+                                                        place = goDaddySoapClient.purchase(domain, price);
+                                                        if (place.getIsValid().equals("True")) {
+                                                            dBdetails.setCurrbid(price);
+                                                            if (pricei > Integer.valueOf(maxprice))
+                                                                dBdetails.setBidAmount(price);
+                                                            if (place.getIsHighBid().equals("True")) {
+                                                                dBdetails.setFast_i(0);
+                                                                telegram.sendAlert(-1001763199668l, 1004l, "GoDaddy: Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + price);
+                                                                notifRepo.save(new Notification("GoDaddy", time, "Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + price));
+                                                                logger.info(time + ": Stopped  Fast Bidding on domain: " + domain + " as we surpassed proxy at price: " + price);
+                                                                break;
+                                                            }
+                                                        } else {
+                                                            dBdetails.setResult("Bid Not Placed");
+                                                            notifRepo.save(new Notification("GoDaddy", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + price));
+                                                            logger.info(time + ": Scheduled Bid Not Placed of domain: " + domain + " at price " + price);
+                                                            telegram.sendAlert(-1001763199668l, 1004l, "GoDaddy: Scheduled Bid Not Placed of domain: " + domain + " at price " + price);
+                                                            deleteTaskMap(domain);
+                                                            dBdetails.setFast_i(0);
+                                                            scheduleCO=false;
+                                                            break;
+                                                        }
+                                                    } else {
+                                                        Date d = null;
+                                                        try {
+                                                            d = ft.parse(endTime);
+                                                        } catch (ParseException p) {
+                                                            logger.info(p.getMessage());
+                                                            //continue;
+                                                        }
+
+                                                        String timeLeft = relTime(d);
+                                                        String text = liveFormatg("Outbid", timeLeft, domain, pricei, dBdetails.getBidAmount(), dBdetails.getEstibot(), dBdetails.getGdv());
+
+                                                        Object obj = telegram.sendKeyboard(new SendMessage(-1001866615838L
+                                                                , text, getKeyboardOb(domain, pricei)));
+                                                        now = new Date();
+                                                        time = timeft.format(now);
+                                                        notifRepo.save(new Notification("GoDaddy", time, "Domain: " + domain + " with our max price " + maxprice + " OUTBID at price " + price1));
+                                                        logger.info(time + ":Domain: " + domain + " with our max price " + maxprice + " Outbid at price " + price1);
+
+                                                        dBdetails.setResult("Outbid");
+
+                                                        now.setMinutes(now.getMinutes() + 30);
+                                                        ScheduledFuture res1 = taskScheduler.schedule(new GetResultGD(domain, domain), now);
+                                                        updateTaskMap(domain, res1, "gr");
+                                                        dBdetails.setFast_i(0);
+                                                        scheduleCO=false;
+                                                        break;
+                                                    }
+                                                }
+                                                else {
+                                                    dBdetails.setResult("Bid Not Placed");
+                                                    notifRepo.save(new Notification("GoDaddy", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + price));
+                                                    logger.info(time + ": Scheduled Bid Not Placed of domain: " + domain + " at price " + price);
+                                                    telegram.sendAlert(-1001763199668l, 1004l, "GoDaddy: Scheduled Bid Not Placed of domain: " + domain + " at price " + price);
+                                                    deleteTaskMap(domain);
+                                                    dBdetails.setFast_i(0);
+                                                    scheduleCO=false;
+                                                    break;
+                                                }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if(scheduleCO)
+                                    {
+                                        now=new Date();
+                                        now.setSeconds(now.getSeconds() + 30);
+                                        CheckOutbid checkOutbid = new CheckOutbid(domain, maxprice, price);
+                                        ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now, 40000);
+                                        checkOutbid.setScheduledFuture(scheduledFuture);
+                                        updateTaskMap(domain, scheduledFuture, "cb");
+                                    }
+                                    myRepo.save(dBdetails);
+                                } else
+                                {
                                     dBdetails.setResult("Bid Not Placed");
                                     dBdetails.setIsBidPlaced(false);
                                     notifRepo.save(new Notification("GoDaddy", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + price));
@@ -2656,7 +3304,8 @@ public class GetResultGD implements Runnable
                         Date d = new Date();
                         String time = timeft.format(d);
                         logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                        notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                        saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                         telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                         a++;
                         ft1.setTimeZone(pst);
@@ -2682,7 +3331,8 @@ public class GetResultGD implements Runnable
                     } else {
                         Date d = new Date();
                         String time = timeft.format(d);
-                        notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                        saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                         telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -2691,7 +3341,89 @@ public class GetResultGD implements Runnable
                 else {
                     Date d = new Date();
                     String time = timeft.format(d);
-                    notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()));
+                    saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
+                    logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage());
+                    telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage());
+
+                }
+            }
+            catch(Exception e)
+            {
+                Date d= new Date();
+                String time= timeft.format(d);
+                notifRepo.save(new Notification("GoDaddy",time,"Could not bought closeout: " + domain + " at price: " + price + " with message: " + e.getMessage()));
+                logger.info(time+": Could not bought closeout: " + domain + " at price: " + price + " with message: " + e.getMessage());
+                telegram.sendAlert(-834797664L,"Could not bought closeout: " + domain + " at price: " + price + " with message: " + e.getMessage());
+
+            }
+        }
+        List<Integer> l= new ArrayList<>();
+        l.add(a);
+        l.add(n);
+        return l;
+    }
+
+    @PostMapping("/buygodaddycloseouts1")
+    List<Integer> buycloseouts(@RequestBody List<String[]> closeouts)
+    {
+
+       // List<String> list= closeouts.getCloseout();
+        //String price= closeouts.getPrice();
+        int a=0;
+        int n=closeouts.size();
+        for(int i=0;i<n;i++)
+        {
+            String domain= closeouts.get(i)[closeouts.get(i).length-2];
+            String price= closeouts.get(i)[closeouts.get(i).length-1];
+            try {
+                EstimateCloseoutPrice est= goDaddySoapClient.estimateCloseoutPrice(domain);
+                if(est.getResult().equals("Success")) {
+                    //PlaceBid res = goDaddySoapClient.purchasecloseout(domain, price);
+                    InstantPurchaseCloseout res= goDaddySoapClient.instantPurchaseCloseout(domain,est.getCloseoutDomainPriceKey());
+                    if (res.getResult().equals("Success")) {
+                        Date d = new Date();
+                        String time = timeft.format(d);
+                        logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                        saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
+                        telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
+                        a++;
+                        ft1.setTimeZone(pst);
+                        String endTime = ft1.format(d);
+                        ft1.setTimeZone(ist);
+                        String endTimeist = ft1.format(d);
+                        Optional<Closeoutdb> o = Optional.ofNullable(closeoutrepo.findByDomain(domain));
+                        Closeoutdb db = null;
+                        if (!o.isPresent()) {
+                            db = new Closeoutdb("GoDaddy", domain, price, endTime, endTimeist, "", "", "", "Bought");
+                            db.setOurPrice(price);
+                        } else {
+                            db = o.get();
+                            db.setEndTimeist(endTimeist);
+                            db.setEndTime(endTime);
+                            db.setCurrPrice(price);
+                            db.setOurPrice(price);
+                            db.setStatus("Bought");
+                        }
+
+                        closeoutrepo.save(db);
+
+                    } else {
+                        Date d = new Date();
+                        String time = timeft.format(d);
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                        saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
+                        logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
+                        telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
+
+                    }
+                }
+                else {
+                    Date d = new Date();
+                    String time = timeft.format(d);
+                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()));
+                    saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                     logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage());
                     telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage());
 
@@ -2807,7 +3539,7 @@ public class GetResultGD implements Runnable
         return closeoutrepo.findByWatchlistedTrueOrderByEndTimeist();
     }
 
-    @PostMapping("/bulkfetchcloseoutsgodaddy")
+    @PostMapping("/bulkfetchcloseoutsgodaddy")@PreAuthorize("hasAuthority('CloseOut')")
     List<Closeoutdb> fetchcloseouts(@RequestBody List<String> dlist)
     {
 
@@ -3249,7 +3981,7 @@ public class GetResultGD implements Runnable
         }
     }
 
-    @PostMapping ("/schedulegodaddycloseouts")
+    @PostMapping ("/schedulegodaddycloseouts")@PreAuthorize("hasAuthority('CloseOut')")
     List<Integer> scheduleCloseouts(@RequestBody Closeouts closeouts)
     {
         List<Integer> list= new ArrayList<>();
@@ -3302,8 +4034,9 @@ public class GetResultGD implements Runnable
                             Date now = new Date();
                             String time = timeft.format(now);
                             logger.info("Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
                             telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
+                            saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
 
                             a++;
                             cron.setScheduledFuture(scheduledFuture);
@@ -3324,7 +4057,8 @@ public class GetResultGD implements Runnable
                                     Date d = new Date();
                                     String time = timeft.format(d);
                                     logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                                     a++;
                                     ft1.setTimeZone(pst);
@@ -3350,7 +4084,8 @@ public class GetResultGD implements Runnable
                                 } else {
                                     Date d = new Date();
                                     String time = timeft.format(d);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                     logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                                     telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -3359,7 +4094,8 @@ public class GetResultGD implements Runnable
                             else {
                                 Date d = new Date();
                                 String time = timeft.format(d);
-                                notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                 logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
                                 telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
 
@@ -3370,7 +4106,8 @@ public class GetResultGD implements Runnable
                             Date now = new Date();
                             String time = timeft.format(now);
                             logger.info("Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice));
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice));
+                            saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                             telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice);
 
                         }
@@ -3380,7 +4117,8 @@ public class GetResultGD implements Runnable
                         Date now= new Date();
                         String time=timeft.format(now);
                         logger.info("GoDaddy: Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage());
-                        notifRepo.save(new Notification("GoDaddy",time,"Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage()));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage()));
+                        saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         telegram.sendAlert(-1001763199668l,1005l,"GoDaddy: Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage());
 
                     }
@@ -3444,7 +4182,8 @@ public class GetResultGD implements Runnable
                               Date now = new Date();
                               String time = timeft.format(now);
                               logger.info("Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                              notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                              Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                              saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                               telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                               db.setStatus("Closeout Recheck Scheduled");
@@ -3463,7 +4202,8 @@ public class GetResultGD implements Runnable
                                   Date now = new Date();
                                   String time = timeft.format(now);
                                   logger.info("Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                                  notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                  Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                  saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                   telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                                   d.setMinutes(d.getMinutes() + 6);
@@ -3480,7 +4220,8 @@ public class GetResultGD implements Runnable
                                   logger.info("Closeout RECHECK scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
                                   Date now = new Date();
                                   String time = timeft.format(now);
-                                  notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                  Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                  saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                   telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
                                   a++;
                               }
@@ -3496,7 +4237,8 @@ public class GetResultGD implements Runnable
                                   Date d = new Date();
                                   String time = timeft.format(d);
                                   logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                                  notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                  Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                  saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                   telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                                   a++;
                                   ft1.setTimeZone(pst);
@@ -3522,7 +4264,8 @@ public class GetResultGD implements Runnable
                               } else {
                                   Date d = new Date();
                                   String time = timeft.format(d);
-                                  notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                  Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                  saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                   logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                                   telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -3531,7 +4274,8 @@ public class GetResultGD implements Runnable
                           else {
                               Date d = new Date();
                               String time = timeft.format(d);
-                              notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                              Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                              saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                               logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
                               telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
 
@@ -3542,8 +4286,9 @@ public class GetResultGD implements Runnable
                           Date now = new Date();
                           String time = timeft.format(now);
                           logger.info("Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice);
-                          notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice));
-                          telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice);
+                          Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice));
+                          saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
+                          telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is "+currprice);
 
                       }
                   }
@@ -3552,7 +4297,8 @@ public class GetResultGD implements Runnable
                       Date now= new Date();
                       String time=timeft.format(now);
                       logger.info("Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage());
-                      notifRepo.save(new Notification("GoDaddy",time,"Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage()));
+                      Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage()));
+                      saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                       telegram.sendAlert(-1001763199668l,1005l,"GoDaddy: Closeout not scheduled for domain: "+domain+" with reason: "+res.getMessage());
 
 
@@ -3563,7 +4309,8 @@ public class GetResultGD implements Runnable
                     Date now= new Date();
                     String time=timeft.format(now);
                     logger.info("Closeout not scheduled for domain: "+domain+" with reason: "+e.getMessage());
-                    notifRepo.save(new Notification("GoDaddy",time,"Closeout not scheduled for domain: "+domain+" with reason: "+e.getMessage()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy",time,"Closeout not scheduled for domain: "+domain+" with reason: "+e.getMessage()));
+                    //saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                     telegram.sendAlert(-834797664L,"GoDaddy: Closeout not scheduled for domain: "+domain+" with reason: "+e.getMessage());
 
 
@@ -3874,6 +4621,9 @@ public class GetResultGD implements Runnable
 
         }
     }
+
+    @PostMapping ("/schedulegodaddycloseouts1")@PreAuthorize("hasAuthority('CloseOut')")
+
     List<Integer> scheduleCloseouts1(@RequestBody List<String[]> closeouts) {
         List<Integer> list = new ArrayList<>();
 
@@ -3921,7 +4671,8 @@ public class GetResultGD implements Runnable
                             Date now = new Date();
                             String time = timeft.format(now);
                             logger.info("Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                            saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                             telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                             a++;
@@ -3942,7 +4693,8 @@ public class GetResultGD implements Runnable
                                     Date d = new Date();
                                     String time = timeft.format(d);
                                     logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                                     a++;
                                     ft1.setTimeZone(pst);
@@ -3968,7 +4720,8 @@ public class GetResultGD implements Runnable
                                 } else {
                                     Date d = new Date();
                                     String time = timeft.format(d);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                     logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                                     telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -3977,7 +4730,8 @@ public class GetResultGD implements Runnable
                             else {
                                 Date d = new Date();
                                 String time = timeft.format(d);
-                                notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                 logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
                                 telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
 
@@ -3986,7 +4740,8 @@ public class GetResultGD implements Runnable
                             Date now = new Date();
                             String time = timeft.format(now);
                             logger.info("Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
+                            saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                             telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
 
                         }
@@ -3994,7 +4749,8 @@ public class GetResultGD implements Runnable
                         Date now = new Date();
                         String time = timeft.format(now);
                         logger.info("GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
-                        notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
 
                     }
@@ -4050,7 +4806,8 @@ public class GetResultGD implements Runnable
                                 Date now = new Date();
                                 String time = timeft.format(now);
                                 logger.info("Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                                notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                 telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                                 db.setStatus("Closeout Recheck Scheduled");
@@ -4069,7 +4826,8 @@ public class GetResultGD implements Runnable
                                     Date now = new Date();
                                     String time = timeft.format(now);
                                     logger.info("Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                                     d.setMinutes(d.getMinutes() + 6);
@@ -4086,7 +4844,8 @@ public class GetResultGD implements Runnable
                                     logger.info("Closeout RECHECK scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
                                     Date now = new Date();
                                     String time = timeft.format(now);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
                                     a++;
                                 }
@@ -4102,7 +4861,8 @@ public class GetResultGD implements Runnable
                                     Date d = new Date();
                                     String time = timeft.format(d);
                                     logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    saveAction("Closeout Instant","UI",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                                     a++;
                                     ft1.setTimeZone(pst);
@@ -4128,7 +4888,8 @@ public class GetResultGD implements Runnable
                                 } else {
                                     Date d = new Date();
                                     String time = timeft.format(d);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                     logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                                     telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -4137,7 +4898,8 @@ public class GetResultGD implements Runnable
                             else {
                                 Date d = new Date();
                                 String time = timeft.format(d);
-                                notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                 logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
                                 telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
 
@@ -4146,15 +4908,17 @@ public class GetResultGD implements Runnable
                             Date now = new Date();
                             String time = timeft.format(now);
                             logger.info("Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
-                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
+                            saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
+                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
 
                         }
                     } else {
                         Date now = new Date();
                         String time = timeft.format(now);
                         logger.info("Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
-                        notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        saveAction("Closeout Schedule","UI",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
 
 
@@ -4228,7 +4992,8 @@ public class GetResultGD implements Runnable
                             String time = timeft.format(now);
 
                             logger.info("Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                            saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                             telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                             a++;
@@ -4250,7 +5015,8 @@ public class GetResultGD implements Runnable
                                     Date d = new Date();
                                     String time = timeft.format(d);
                                     logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    saveAction("Closeout Instant","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                                     a++;
                                     ft1.setTimeZone(pst);
@@ -4276,7 +5042,8 @@ public class GetResultGD implements Runnable
                                 } else {
                                     Date d = new Date();
                                     String time = timeft.format(d);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                     logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                                     telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -4285,7 +5052,8 @@ public class GetResultGD implements Runnable
                             else {
                                 Date d = new Date();
                                 String time = timeft.format(d);
-                                notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                 logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
                                 telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
 
@@ -4296,8 +5064,9 @@ public class GetResultGD implements Runnable
                             String time = timeft.format(now);
                             s=s+"Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice+"\n";
                             logger.info("Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
-                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
+                            saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
+                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
 
                         }
                     } else {
@@ -4305,7 +5074,8 @@ public class GetResultGD implements Runnable
                         String time = timeft.format(now);
                         s=s+"Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()+"\n";
                         logger.info("GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
-                        notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
 
                     }
@@ -4313,7 +5083,8 @@ public class GetResultGD implements Runnable
                     Date now = new Date();
                     String time = timeft.format(now);
                     logger.info("Closeout not scheduled for domain: " + domain + " with reason: " + e.getMessage());
-                    notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + e.getMessage()));
+                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + e.getMessage()));
+                    saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                     telegram.sendAlert(-834797664L, "GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + e.getMessage());
                 }
 
@@ -4378,7 +5149,8 @@ public class GetResultGD implements Runnable
                                     Date now = new Date();
                                     String time = timeft.format(now);
                                     logger.info("Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
 
                                     d.setMinutes(d.getMinutes() + 6);
@@ -4395,7 +5167,8 @@ public class GetResultGD implements Runnable
                                     logger.info("Closeout RECHECK scheduled for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
                                     Date now = new Date();
                                     String time = timeft.format(now);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist));
+                                    saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout SCHEDULED for domain: " + domain + " with price: " + price + " at time: " + endTimeist);
                                     a++;
                                 }
@@ -4410,7 +5183,8 @@ public class GetResultGD implements Runnable
                                     Date d = new Date();
                                     String time = timeft.format(d);
                                     logger.info(time + ": Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price));
+                                    saveAction("Closeout Instant","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,true,domain,getUserName());
                                     telegram.sendAlert(-1001763199668l,1005l, "GoDaddy: Instant Closeout SUCCESSFULLY BOUGHT for domain: " + domain + " at price: " + price);
                                     a++;
                                     ft1.setTimeZone(pst);
@@ -4436,7 +5210,8 @@ public class GetResultGD implements Runnable
                                 } else {
                                     Date d = new Date();
                                     String time = timeft.format(d);
-                                    notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage()));
+                                    saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                     logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
                                     telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + res.getMessage());
 
@@ -4445,7 +5220,8 @@ public class GetResultGD implements Runnable
                             else {
                                 Date d = new Date();
                                 String time = timeft.format(d);
-                                notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND"));
+                                saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                                 logger.info(time + ": Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
                                 telegram.sendAlert(-1001763199668l,1005l, "Could not bought closeout: " + domain + " at price: " + price + " with message: " + est.getMessage()+", Most probably you're OUT OF FUND");
 
@@ -4456,8 +5232,9 @@ public class GetResultGD implements Runnable
                             s=s+"Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice+"\n";
 
                             logger.info("Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
-                            notifRepo.save(new Notification("GoDaddy", time, "Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
-                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
+                            Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice));
+                            saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
+                            telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with price: " + price + " as current price is " + currprice);
 
                         }
                     } else {
@@ -4465,7 +5242,8 @@ public class GetResultGD implements Runnable
                         String time = timeft.format(now);
                         s=s+"Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()+"\n";
                         logger.info("Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
-                        notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        Notification notification=notifRepo.save(new Notification("GoDaddy", time, "Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage()));
+                        saveAction("Closeout Schedule","CPanel",getUser(),myRepo.findTopByDomain(domain),notification,false,domain,getUserName());
                         telegram.sendAlert(-1001763199668l, 1005l, "GoDaddy: Closeout not scheduled for domain: " + domain + " with reason: " + res.getMessage());
 
 

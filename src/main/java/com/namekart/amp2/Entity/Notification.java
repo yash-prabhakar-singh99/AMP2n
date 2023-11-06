@@ -1,6 +1,7 @@
 package com.namekart.amp2.Entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.namekart.amp2.UserEntities.Action;
 
 import javax.persistence.*;
 import java.text.SimpleDateFormat;
@@ -16,6 +17,46 @@ public class Notification {
     String message;
 
     String platform;
+
+    @JsonIgnore
+    @OneToOne(mappedBy = "notification")
+    Action action;
+
+    public void setID(Long ID) {
+        this.ID = ID;
+    }
+
+    public Action getAction() {
+        return action;
+    }
+
+    public void setAction(Action action) {
+        this.action = action;
+    }
+
+    public Date getDate() {
+        return date;
+    }
+
+    public void setDate(Date date) {
+        this.date = date;
+    }
+
+    public Date getTime() {
+        return time;
+    }
+
+    public void setTime(Date time) {
+        this.time = time;
+    }
+
+    public String getTimes() {
+        return times;
+    }
+
+    public void setTimes(String times) {
+        this.times = times;
+    }
 
     @Temporal(TemporalType.DATE)
     Date date;

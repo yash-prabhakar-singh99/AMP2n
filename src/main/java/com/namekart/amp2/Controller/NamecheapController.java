@@ -5,23 +5,25 @@ import com.namekart.amp2.APIKeySetting.APIKeySettings;
 import com.namekart.amp2.DotDBEntity.DotDbResponse;
 import com.namekart.amp2.Entity.*;
 import com.namekart.amp2.EstibotEntity.Estibot_Data;
-import com.namekart.amp2.Feign.DotDBFeign;
-import com.namekart.amp2.Feign.Namecheapfeign;
-import com.namekart.amp2.Feign.NamecheapfeignB;
-import com.namekart.amp2.Feign.Telegram;
+import com.namekart.amp2.Feign.*;
 import com.namekart.amp2.NamecheapEntity.*;
 import com.namekart.amp2.Repository.*;
+import com.namekart.amp2.SettingsEntity.FastBidSetting;
 import com.namekart.amp2.SettingsEntity.LiveFilterSettings;
 import com.namekart.amp2.Status;
 import com.namekart.amp2.TelegramEntities.EditMessage;
 import com.namekart.amp2.TelegramEntities.InlineKeyboardButton;
 import com.namekart.amp2.TelegramEntities.InlineKeyboardMarkup;
 import com.namekart.amp2.TelegramEntities.SendMessage;
+import com.namekart.amp2.UserEntities.Action;
 import com.namekart.amp2.UserEntities.Authentication;
+import com.namekart.amp2.UserEntities.User;
+import com.nimbusds.jose.shaded.json.JSONArray;
 import feign.FeignException;
 import feign.RetryableException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 //import org.apache.commons.lang3.StringUtils;
@@ -84,9 +86,14 @@ public class NamecheapController {
     TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
     TimeZone istTimeZone = TimeZone.getTimeZone("IST");
 
+    int buffer=50,bufferQ=10;
+
     SimpleDateFormat timeft = new SimpleDateFormat("dd/MM HH:mm");
 
     StopWatch stopWatch;
+
+    @Value("${platforms}")
+    String[] platforms;
     String summary="",textli;
     Map<String,String> map;
 
@@ -110,18 +117,76 @@ public class NamecheapController {
         accounts=new ConcurrentHashMap<>();
     }
 
+    FastBidSetting fastBidSetting;
+
     @Autowired
     APIKeysRepo apiKeysRepo;
+
+    @Autowired
+    FastSettingsRepo fastSettingsRepo;
     @PostConstruct
     void loadAccount()
     {
-        APIKeySettings settings=apiKeysRepo.findById(1).get();APIKeySettings settings2=apiKeysRepo.findById(2).get();
-        accounts.put(false,"Bearer "+settings.getNcKey());accounts.put(true,"Bearer "+settings2.getNcKey());
+        APIKeySettings settings=apiKeysRepo.findById(1).get();APIKeySettings settings1=apiKeysRepo.findById(2).get();
+        accounts.put(false,"Bearer "+settings.getNcKey());accounts.put(true,"Bearer "+settings1.getNcKey());
+
+        /*
+        for(String platform : platforms)
+        {
+           Optional<FastBidSetting> op= fastSettingsRepo.findById(platform);
+           if(!op.isPresent())
+           {
+               FastBidSetting fastBidSetting=new FastBidSetting(platform,4,1000);
+               fastSettingsRepo.save(fastBidSetting);
+           }
+        }
+        */
+        Optional<FastBidSetting> op= fastSettingsRepo.findById("Namecheap");
+        if(!op.isPresent())
+        {
+            fastBidSetting=new FastBidSetting("Namecheap",4,1000);
+            fastSettingsRepo.save(fastBidSetting);
+        }
+    }
+    void setFastBidSetting(int n, int amount)
+    {
+        fastBidSetting.setFastBidAmount(amount);fastBidSetting.setFastN(n);
+        fastBidSetting=fastSettingsRepo.save(fastBidSetting);
+    }
+    @GetMapping("/postAPIkeys")
+    void postSettings()
+    {
+        APIKeySettings settings= new APIKeySettings(1,"7fcf313ace746555cff70389","babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M","8B8Y70UXd7o7D58A8rh7N829B629L9H8W9G7e7q9W8d","cab3a5f74eee3c7a90027fa7a3081cd9CcawjwyrjfmyhQ5c+PfCADp9wDYnfd2ni6AozrVwtT93rjRaabhDbfp+mYQUhPCy","9jbXdb1mjhS_QcMKNez5VGsuKqjy8zwFe7","KfM7V6dqvRfgYf7KkSPuin");//namecheap aria account
+        APIKeySettings settings1= new APIKeySettings(2,"7fcf313ace746555cff70389","babyyoda:hawk",":pvN|?'Sb4.Ah2N0t+7M","8B8Y70UXd7o7D58A8rh7N829B629L9H8W9G7e7q9W8d","cab3a5f74eee3c7a90027fa7a3081cd9CcawjwyrjfmyhQ5c+PfCADp9wDYnfd2ni6AozrVwtT93rjRaabhDbfp+mYQUhPCy","9jbXdb1mjhS_QcMKNez5VGsuKqjy8zwFe7","KfM7V6dqvRfgYf7KkSPuin");
+        apiKeysRepo.save(settings);apiKeysRepo.save(settings1);
+        //APIKeySettings settings=apiKeysRepo.findById(1).get();APIKeySettings settings1=apiKeysRepo.findById(2).get();
+        accounts.put(false,"Bearer "+settings.getNcKey());accounts.put(true,"Bearer "+settings1.getNcKey());
     }
     Logger logger =Logger.getLogger("Namecheap Yash");
 
     ConcurrentMap<String, Status> taskmap;
 
+    @Autowired
+    UserRepository userRepository;
+
+    User getUser()
+    {
+        return userRepository.findByEmail(getToken().getClaim("unique_name")+"");
+    }
+
+    User getUser(Long tg_id)
+    {
+        return userRepository.findByTgUserId(tg_id);
+    }
+
+    AADOAuth2AuthenticatedPrincipal getToken()
+    {
+        return (AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+    String getUserName()
+    {
+        return (getToken().getClaim("unique_name")+"");
+    }
     String getAccount(String domain)
     {
         domain=domain.toLowerCase();
@@ -145,6 +210,39 @@ public class NamecheapController {
         else return "no";
     }
 
+    void saveAction(String action, String medium, String telegramGroup, User user, DBdetails dbdetails, Notification notification, boolean success, String domain, String userName)
+    {
+        Action action1=new Action(action,medium,telegramGroup,user,dbdetails,notification,success,domain,userName);
+        try {
+            actionRepository.save(action1);
+        }
+        catch(Exception e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+
+    void saveAction(String action, String medium, User user, DBdetails dbdetails, Notification notification, boolean success, String domain, String userName)
+    {
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+    void saveAction(String action, String medium, String telegramGroup, DBdetails dbdetails, Notification notification, boolean success, String domain,Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,telegramGroup,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
+
+    void saveAction(String action, String medium, DBdetails dbdetails, Notification notification, boolean success, String domain, Long tg_id)
+    {
+        User user=userRepository.findByTgUserId(tg_id);
+        String userName=user.getEmail();
+        Action action1=new Action(action,medium,user,dbdetails,notification,success,domain,userName);
+        actionRepository.save(action1);
+    }
     String getAccount(DBdetails db)
     {
         return accounts.get(db.getAccount());
@@ -236,6 +334,45 @@ public class NamecheapController {
             taskmap.get(domain).getFuture().cancel(false);
             taskmap.remove(domain);
         }
+    }
+
+    @Autowired
+    ActionRepository actionRepository;
+
+    @GetMapping("/testmapping")
+    Object testMapping()
+    {
+        /*User user= new User("abc","abc","abc");
+        userRepository.save(user);*/
+        DBdetails dBdetails=new DBdetails("abc1.com");
+        repo.save(dBdetails);
+        Notification notification= new Notification("abc");
+        notifRepo.save(notification);
+        //Notification notification=notifRepo.findById(1l).get();
+        //Action action= actionRepository.findById(1l).get();
+        Action action= new Action();
+        action.setDbdetails(dBdetails);action.setNotification(notification);action.setUser(userRepository.findById(3).get());
+        actionRepository.save(action);
+
+        return repo.findById(415l).get();
+    }
+
+    @GetMapping("/testmapping1")
+    Object testMapping1()
+    {
+        /*User user= new User("abc","abc","abc");
+        userRepository.save(user);
+        DBdetails dBdetails=new DBdetails("abc.com");
+        repo.save(dBdetails);
+        Notification notification= new Notification("abc");
+        notifRepo.save(notification);
+        //Notification notification=notifRepo.findById(1l).get();
+        //Action action= actionRepository.findById(1l).get();
+        Action action= new Action();
+        action.setDbdetails(dBdetails);action.setNotification(notification);action.setUser(user);
+        actionRepository.save(action);*/
+
+        return userRepository.findById(3).get();
     }
 
 
@@ -535,7 +672,7 @@ public class NamecheapController {
         row.add(new InlineKeyboardButton("Bid 50", "b" + " nc "+auctionId+" " + domain + " " + currbid + " 50"));
         row.add(new InlineKeyboardButton("Bid 50 Alt", "-b" + " nc "+auctionId+" " + domain + " " + currbid+" 50"));
         row.add(new InlineKeyboardButton("Custom", "cn" + " nc "+auctionId+" " + domain + " " + currbid));
-        row1.add(new InlineKeyboardButton("Track", "t" + " nc " +auctionId+" "+ domain + " " + currbid));
+        row1.add(new InlineKeyboardButton("Watch", "w" + " nc " +auctionId+" "+ domain + " " + currbid));
         row1.add(new InlineKeyboardButton("Refresh", "r" + " nc "+auctionId+" " + domain + " " + currbid));
         row2.add(new InlineKeyboardButton("Leads", "l" + " nc "+auctionId+" " + domain + " " + currbid));
         row2.add(new InlineKeyboardButton("Stats", "s" + " nc "+auctionId+" " + domain + " " + currbid));
@@ -562,6 +699,18 @@ public class NamecheapController {
         String text=liveFormat(status,timeLeft,domain,minBid,ourMaxBid,EST);
         telegram.sendKeyboard(new SendMessage(-1001887754426L,text,getKeyboardWatch(domain,auctionId,minBid)));
     }
+    void sendLive(String timeLeft, String domain, Float minBid, String ourMaxBid,Integer EST,String auctionId)
+    {
+        String text=liveFormat("Live Detect",timeLeft,domain,minBid,ourMaxBid,EST);
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,1017l,text,getKeyboardLive(domain,auctionId,minBid)));
+    }
+    void sendLive(String timeLeft, String domain, Float minBid, Integer EST,String auctionId,String leads,String ourMaxBid)
+    {
+        String text=liveFormat("Live Detect",timeLeft,domain,minBid,ourMaxBid,EST);
+        if(leads!=null&&!leads.equals(""))
+            text=text+"\n"+leads;
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,1017l,text,getKeyboardLive(domain,auctionId,minBid)));
+    }
     void sendLive(String timeLeft, String domain, Float minBid, Integer EST,String auctionId)
     {
         String text=liveFormat("Live Detect",timeLeft,domain,minBid,"",EST);
@@ -577,6 +726,11 @@ public class NamecheapController {
     void sendLiveI(String timeLeft, String domain, Float minBid,Integer EST,String auctionId)
     {
         String text=liveFormat("Initial Detect",timeLeft,domain,minBid,"",EST);
+        telegram.sendKeyboard(new SendMessage(-1001763199668l,24112l,text,getKeyboardLive(domain,auctionId,minBid)));
+    }
+    void sendLiveI(String timeLeft, String domain, Float minBid,Integer EST,String auctionId, String ourMaxBid)
+    {
+        String text=liveFormat("Initial Detect",timeLeft,domain,minBid,ourMaxBid,EST);
         telegram.sendKeyboard(new SendMessage(-1001763199668l,24112l,text,getKeyboardLive(domain,auctionId,minBid)));
     }
     @Scheduled(fixedRate = 120000)
@@ -634,9 +788,14 @@ public class NamecheapController {
                             db.setResult("Outbid");}
                         else if(b&&nc.getMinBid()<=Float.valueOf(db.getBidAmount()))
                         {
-                            if (d.getTime() - now.getTime() < 300000) {
-                                d.setSeconds(d.getSeconds() - 10);
-                                ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid,Float.valueOf(db.getBidAmount()) , domain, endTime), d);
+                            if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                                d.setSeconds(d.getSeconds() - bufferQ);
+                                ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, Float.valueOf(db.getBidAmount()), domain, endTime,true), d);
+                                enterTaskMap(domain, task, "pb");
+                            }
+                            else if (d.getTime() - now.getTime() < 300000) {
+                                d.setSeconds(d.getSeconds() - buffer);
+                                ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid,Float.valueOf(db.getBidAmount()) , domain, endTime,false), d);
                                 enterTaskMap(domain, task, "pb");
 
                             } else {
@@ -758,13 +917,14 @@ b=false;
                 InlineKeyboardButton button= list.get(j);
                 String data= button.getCallback_data();
                 String[] arr = data.split(" ");
-                arr[4]=currbid+"";
-                data="";
-                for(int k=0;k<arr.length;k++)
-                {
-                    data=arr[i]+" ";
+                if(arr.length>3) {
+                    arr[4] = currbid + "";
+                    data = "";
+                    for (int k = 0; k < arr.length; k++) {
+                        data = arr[i] + " ";
+                    }
+                    button.setCallback_data(data);
                 }
-                button.setCallback_data(data);
             }
         }
         return markup;
@@ -840,7 +1000,7 @@ b=false;
         //telegram.editMessageText(editMessage);
     }
 
-    void watchlistLive(String domain, String ncid, Boolean track)
+    void watchlistLive(String domain, String ncid, Boolean track, String chat_title, Long tg_id)
     {
         try {
             CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
@@ -904,6 +1064,10 @@ b=false;
                 db.setTrack(true);
             repo.save(db);
             sendWatchlist("Watchlist",time_left,domain,nc.getMinBid(),db.getBidAmount(),nc.getEstibotValue(),ncid);
+            Date now=new Date();
+            String time = timeft.format(now);
+            Notification notification=notifRepo.save(new Notification("Namecheap", time, "Domain Watchlisted " + domain ));
+            saveAction("Watchlisted","Bubble",chat_title,db,notification,true,domain,tg_id);
 
             controller.putESTinDBSingle(cf);
         }
@@ -1065,6 +1229,11 @@ b=false;
             sendWatchlist("Watchlist",time_left,domain,nc.getMinBid(),db.getBidAmount(),nc.getEstibotValue(),ncid);
 
             repo.save(db);
+            Date now=new Date();
+            String time = timeft.format(now);
+            Notification notification=notifRepo.save(new Notification("Namecheap", time, "Domain Watchlisted " + domain ));
+            saveAction("Watchlisted","UI",getUser(),db,notification,true,domain,getUserName());
+
         }
         catch(Exception e)
         {
@@ -1076,6 +1245,8 @@ b=false;
     }
     //@Autowired
     AllController controller;
+
+    @PreAuthorize("hasAuthority('APPROLE_Watch')")
     @PostMapping("/fetchdetailsnc")
     List<DBdetails> fetchdetailsnc(@RequestBody FetchReq body)
     {
@@ -1132,6 +1303,87 @@ b=false;
                 if(watch)
                 {db.setWatchlist(true);
                     sendWatchlist("Watchlist",time_left,domain,nc.getMinBid(),db.getBidAmount(),nc.getEstibotValue(),ncid);
+                    Date now=new Date();
+                    String time = timeft.format(now);
+                    Notification notification=notifRepo.save(new Notification("Namecheap", time, "Domain Watchlisted " + domain ));
+                    saveAction("Watchlisted","UI",getUser(),db,notification,true,domain,getUserName());
+                }
+                repo.save(db);
+                list.add(db);
+            }
+            catch(Exception e)
+            {
+                Date now= new Date();
+                String time = timeft.format(now);
+                notifRepo.save(new Notification("Namecheap",time,"Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage()));
+                logger.info(time+": Domain details NOT FETCHED for " + domain + " with error: " + e.getMessage());
+            }
+            //System.out.println(d);
+        }
+        controller.putESTinDB(cf);
+        return list;
+    }
+
+    List<DBdetails> fetchdetailsncbot(FetchReq body,Long tg_id)
+    {
+        List<String> ddlist= body.getDomains();
+        CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList(ddlist);
+        Boolean watch= body.getWatch();
+        String bearer=getPrimaryAccount();
+        List<DBdetails> list = new ArrayList<>();
+        int n= ddlist.size();
+        for(int i=0;i<n;i++) {
+            String domain= ddlist.get(i).toLowerCase();
+            try
+            {
+                ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
+                AuctionDetailNC nc = rn.getItems().get(0);
+                String endTime = nc.getEndDate();
+                endTime = endTime.substring(0, endTime.length() - 5);
+                Date d = null;
+                String endTimeist = "";
+                String time_left;
+                try {
+                    d = parser.parse(endTime);
+                    time_left = relTime(d);
+                } catch (ParseException p) {
+                    logger.info(p.getMessage());
+                    continue;
+                }
+                endTimeist = ft1.format(d);
+                logger.info(endTimeist);
+                Float currbid = nc.getPrice();
+                String ncid = nc.getId();
+                Optional<DBdetails> op = Optional.ofNullable(repo.findByNamecheapid(ncid));
+                DBdetails db = null;
+
+
+                if (op.isPresent()) {
+                    db = op.get();
+                    db.setCurrbid(String.valueOf(currbid));
+                    db.setEndTimepst(endTime);
+                    db.setEndTimeist(endTimeist);
+                    db.setTime_left(time_left);
+                    db.setEstibot(nc.getEstibotValue());
+                    db.setFetched(true);
+
+
+                } else {
+                    //AuctionDetailDC ad= dropCatchFeign.getAuctionDetail(bearer, auctionId.intValue()).getBody();
+                    db = new DBdetails(domain, null, "Namecheap", String.valueOf(currbid), null, nc.getAuctionType(), "", endTime, endTimeist, "", false, ncid);
+                    db.setTime_left(time_left);
+                    db.setEstibot(nc.getEstibotValue());
+                    db.setFetched(true);
+
+                }
+                if(watch)
+                {db.setWatchlist(true);
+                    Date now=new Date();
+                    String time = timeft.format(now);
+                    Notification notification=notifRepo.save(new Notification("Namecheap", time, "Domain Watchlisted " + domain ));
+                    saveAction("Watchlisted","CPanel",db,notification,true,domain,tg_id);
+
+                    sendWatchlist("Watchlist",time_left,domain,nc.getMinBid(),db.getBidAmount(),nc.getEstibotValue(),ncid);
 
                 }
                 repo.save(db);
@@ -1158,16 +1410,22 @@ b=false;
     }
 
     @GetMapping("/fetch123")
-    @PreAuthorize("hasAuthority('APPROLE_Bid_GD')")
+   // @PreAuthorize("hasAuthority('APPROLE_Bid_GD')")
     Object fetchlive22()
     {
 
-      /*  String accessToken = jwt.getTokenValue();
-        logger.info("Received Access Token: " + accessToken);*/
+      // String accessToken = jwt.getTokenValue();
+        logger.info(SecurityContextHolder.getContext().getAuthentication().getName());
 
-        AADOAuth2AuthenticatedPrincipal ad=(AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        logger.info(ad.getClaim("unique_name")+"");
-        return ad;
+        //AADOAuth2AuthenticatedPrincipal ad= (AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+       /* logger.info(((JSONArray)ad.getClaim("roles")).size()+"");
+        Set<String> set=new HashSet<>();
+        JSONArray array= (JSONArray) ad.getClaim("roles");
+        for (int i=0;i<array.size();i++) {
+            set.add(array.get(i)+"");
+        }
+        return set;*/
+        return null;
     }
 
     @GetMapping("/timezone")
@@ -1216,10 +1474,14 @@ b=false;
                         return 1;
                     }
                     Date now = new Date();
-
-                    if (d.getTime() - now.getTime() < 300000) {
-                        d.setSeconds(d.getSeconds() - 10);
-                        ScheduledFuture place = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
+                    if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                        d.setSeconds(d.getSeconds() - bufferQ);
+                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                        enterTaskMap(domain, task, "pb");
+                    }
+                    else if (d.getTime() - now.getTime() < 300000) {
+                        d.setSeconds(d.getSeconds() - buffer);
+                        ScheduledFuture place = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
 
                         enterTaskMap(domain, place, "pb",changeAccount?!oldAccount:oldAccount);
                     } else {
@@ -1259,7 +1521,7 @@ b=false;
                             CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, finalDomain,oldAccount);
                             ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
                             checkOutbid.setScheduledFuture(scheduledFuture);
-                            updateTaskMap(finalDomain, scheduledFuture, "co");
+                            enterTaskMap(finalDomain, scheduledFuture, "co");
                         }
 
                     } else {
@@ -1267,11 +1529,9 @@ b=false;
                         db.setTime_left(time_left);
                         db.setBidAmount(String.valueOf(bid));
                         db.setEstibot(nc.getEstibotValue());
-
-
                     }
                         db.setScheduled(true);
-
+                        db.setAccount(changeAccount?!oldAccount:oldAccount);
                         //db.setGdv(gdv);
                     repo.save(db);
                     String time = timeft.format(now);
@@ -1304,7 +1564,9 @@ b=false;
     return 0;
     }
 
-    @GetMapping("/schedulesinglenc")
+    @Autowired
+    NamecheapfeignBQ namecheapfeignBQ;
+    @GetMapping("/schedulesinglenc")@PreAuthorize("hasAuthority('APPROLE_Bid_NC')")
     float schedulesingleweb(@RequestParam String domain, @RequestParam String ncid, @RequestParam Float bid)
     {
         CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
@@ -1313,9 +1575,8 @@ b=false;
             String bearer=getAccount(domain);
             boolean oldAccount=getAccountBoolean(domain);
             ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
-            AuctionDetailNC nc = rn.getItems().get(0);
-            if(nc!=null&&nc.getStatus()!=null)
-            {
+            if(rn.getItems()!=null&&rn.getItems().get(0)!=null)
+            {AuctionDetailNC nc = rn.getItems().get(0);
             if (nc.getStatus().equals("active")) {
                 float minNextBid = nc.getMinBid();
 
@@ -1331,9 +1592,16 @@ b=false;
                         return 1;
                     }
                     Date now = new Date();
-                    if (d.getTime() - now.getTime() < 300000) {
-                        d.setSeconds(d.getSeconds() - 10);
-                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
+                    //boolean q=false;
+
+                    if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                        d.setSeconds(d.getSeconds() - bufferQ);
+                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                        enterTaskMap(domain, task, "pb");
+                    }
+                    else if (d.getTime() - now.getTime() < 300000) {
+                        d.setSeconds(d.getSeconds() - buffer);
+                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
                         enterTaskMap(domain, task, "pb");
 
                     } else {
@@ -1370,7 +1638,7 @@ b=false;
                                 CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, domain,oldAccount);
                                 ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
                                 checkOutbid.setScheduledFuture(scheduledFuture);
-                                updateTaskMap(domain, scheduledFuture, "co");
+                                enterTaskMap(domain, scheduledFuture, "co");
                             }
 
                         } else {
@@ -1385,7 +1653,8 @@ b=false;
 
                         repo.save(db);
                         String time = timeft.format(now);
-                        notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist));
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist));
+                        saveAction("Bid Scheduled","UI List",getUser(),db,notif,true,domain,getUserName());
                         logger.info("BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist);
                     }, threadPoolExecutor);
                     controller.putESTinDBSingle(cf);
@@ -1395,7 +1664,9 @@ b=false;
                         Date now = new Date();
                         String time = ft1.format(now);
                         telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid);
-                        notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                        saveAction("Bid Scheduled","UI List",getUser(),repo.findByNamecheapid(ncid),notif,false,domain,getUserName());
+
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextBid);
                     }, threadPoolExecutor);
                     return minNextBid;
@@ -1405,7 +1676,8 @@ b=false;
                     Date now = new Date();
                     String time = ft1.format(now);
                     telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as auction has ended");
-                    notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                    Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                    saveAction("Bid Scheduled","UI List",getUser(),repo.findByNamecheapid(ncid),notif,false,domain,getUserName());
                     logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended");
                 }, threadPoolExecutor);
                 return 2;
@@ -1418,7 +1690,8 @@ b=false;
                 Date now = new Date();
                 String time = timeft.format(now);
                 telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
-                notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                saveAction("Bid Scheduled","UI List",getUser(),repo.findByNamecheapid(ncid),notif,false,domain,getUserName());
                 logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
             }, threadPoolExecutor);
             return 2;
@@ -1435,18 +1708,17 @@ b=false;
         }
         return 0;
     }
-
-    float schedulesingleoutbid(@RequestParam String domain, @RequestParam String ncid, @RequestParam Float bid, boolean changeAccount)
+    @GetMapping("/schedulesinglenclive")@PreAuthorize("hasAnyAuthority('APPROLE_Bid_NC','APPROLE_Live_Bid_NC')")
+    float schedulesinglewebLive(@RequestParam String domain, @RequestParam String ncid, @RequestParam Float bid)
     {
         CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
         Float maxprice= bid;
-        String bearer=getAccount(domain);
-        boolean oldAccount=getAccountBoolean(domain);
         try {
+            String bearer=getAccount(domain);
+            boolean oldAccount=getAccountBoolean(domain);
             ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
-            AuctionDetailNC nc = rn.getItems().get(0);
-            if(nc!=null&&nc.getStatus()!=null)
-            {
+            if(rn.getItems()!=null&&rn.getItems().get(0)!=null)
+            {AuctionDetailNC nc = rn.getItems().get(0);
                 if (nc.getStatus().equals("active")) {
                     float minNextBid = nc.getMinBid();
 
@@ -1462,15 +1734,22 @@ b=false;
                             return 1;
                         }
                         Date now = new Date();
-                        if (d.getTime() - now.getTime() < 300000) {
-                            d.setSeconds(d.getSeconds() - 10);
-                            ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
-                            enterTaskMap(domain, task, "pb",changeAccount?!oldAccount:oldAccount);
+                        //boolean q=false;
+
+                        if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                            d.setSeconds(d.getSeconds() - bufferQ);
+                            ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                            enterTaskMap(domain, task, "pb");
+                        }
+                        else if (d.getTime() - now.getTime() < 300000) {
+                            d.setSeconds(d.getSeconds() - buffer);
+                            ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
+                            enterTaskMap(domain, task, "pb");
 
                         } else {
                             d.setMinutes(d.getMinutes() - 4);
                             ScheduledFuture task = taskScheduler.schedule(new PreCheck(ncid, domain, maxprice), d);
-                            enterTaskMap(domain, task, "pc",changeAccount?!oldAccount:oldAccount);
+                            enterTaskMap(domain, task, "pc");
 
                         }
                         Date finalD = d;
@@ -1501,9 +1780,8 @@ b=false;
                                     CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, domain,oldAccount);
                                     ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
                                     checkOutbid.setScheduledFuture(scheduledFuture);
-                                    updateTaskMap(domain, scheduledFuture, "co");
+                                    enterTaskMap(domain, scheduledFuture, "co");
                                 }
-
 
                             } else {
                                 db = new DBdetails(domain, null, "Namecheap", String.valueOf(currbid), null, nc.getAuctionType(), "Bid Scheduled", finalEndTime, endTimeist, endTimeist, false, ncid);
@@ -1517,7 +1795,8 @@ b=false;
 
                             repo.save(db);
                             String time = timeft.format(now);
-                            notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist));
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist));
+                            saveAction("Bid Scheduled","UI List",getUser(),db,notif,true,domain,getUserName());
                             logger.info("BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist);
                         }, threadPoolExecutor);
                         controller.putESTinDBSingle(cf);
@@ -1527,7 +1806,9 @@ b=false;
                             Date now = new Date();
                             String time = ft1.format(now);
                             telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid);
-                            notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                            saveAction("Bid Scheduled","UI List",getUser(),repo.findByNamecheapid(ncid),notif,false,domain,getUserName());
+
                             logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextBid);
                         }, threadPoolExecutor);
                         return minNextBid;
@@ -1537,7 +1818,8 @@ b=false;
                         Date now = new Date();
                         String time = ft1.format(now);
                         telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as auction has ended");
-                        notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                        saveAction("Bid Scheduled","UI List",getUser(),repo.findByNamecheapid(ncid),notif,false,domain,getUserName());
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended");
                     }, threadPoolExecutor);
                     return 2;
@@ -1550,7 +1832,158 @@ b=false;
                     Date now = new Date();
                     String time = timeft.format(now);
                     telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
-                    notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    saveAction("Bid Scheduled","UI List",getUser(),repo.findByNamecheapid(ncid),notif,false,domain,getUserName());
+                    logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                }, threadPoolExecutor);
+                return 2;
+            }
+        }
+        catch(Exception e)
+        {
+            Date now = new Date();
+            String time= timeft.format(now);
+            notifRepo.save(new Notification("Namecheap",time,"BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice));
+            logger.info("Namecheap: BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice);
+
+            logger.info(e.getMessage());
+        }
+        return 0;
+    }
+
+    @GetMapping("/testbid")
+    float schedulesingleoutbid(@RequestParam String domain, @RequestParam String ncid, @RequestParam Float bid,@RequestParam boolean changeAccount, @RequestParam String chat_title,@RequestParam Long user_id)
+    {
+        CompletableFuture<Estibot_Data> cf=controller.getEstibotDomain(domain);
+        Float maxprice= bid;
+        String bearer=getAccount(domain);
+        boolean oldAccount=getAccountBoolean(domain);
+        try {
+            ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
+            if(rn.getItems()!=null&&rn.getItems().get(0)!=null)
+            {
+                AuctionDetailNC nc = rn.getItems().get(0);
+                if (nc.getStatus().equals("active")) {
+                    float minNextBid = nc.getMinBid();
+
+                    if (minNextBid <= maxprice) {
+                        String endTime = nc.getEndDate();
+                        endTime = endTime.substring(0, endTime.length() - 5);
+                        Date d = new Date();
+
+                        try {
+                            d = parser.parse(endTime);
+                        } catch (ParseException p) {
+                            logger.info(p.getMessage());
+                            return 1;
+                        }
+                        Date now = new Date();
+                        if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                            d.setSeconds(d.getSeconds() - bufferQ);
+                            ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                            enterTaskMap(domain, task, "pb");
+                        }
+                        else if (d.getTime() - now.getTime() < 300000) {
+                            d.setSeconds(d.getSeconds() - buffer);
+                            ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
+                            enterTaskMap(domain, task, "pb",changeAccount?!oldAccount:oldAccount);
+
+                        } else {
+                            d.setMinutes(d.getMinutes() - 4);
+                            ScheduledFuture task = taskScheduler.schedule(new PreCheck(ncid, domain, maxprice), d);
+                            enterTaskMap(domain, task, "pc",changeAccount?!oldAccount:oldAccount);
+
+                        }
+                        Date finalD = d;
+                        String finalEndTime = endTime;
+                        CompletableFuture.runAsync(() -> {
+                            String endTimeist = ft1.format(finalD);
+                            String time_left = relTime(finalD);
+                            Float currbid = nc.getPrice();
+                            telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist);
+                            Optional<DBdetails> op = Optional.ofNullable(repo.findByNamecheapid(ncid));
+                            DBdetails db = null;
+                            if (op.isPresent()) {
+                                db = op.get();
+                                db.setCurrbid(String.valueOf(currbid));
+                                db.setBidAmount(String.valueOf(bid));
+                                db.setResult("Bid Scheduled");
+                                db.setEndTimepst(finalEndTime);
+                                db.setEndTimeist(endTimeist);
+                                db.setTime_left(time_left);
+                                db.setAccount(changeAccount?!oldAccount:oldAccount);
+                                db.setEstibot(nc.getEstibotValue());
+                                if(db.getMyLastBid().equals(currbid))
+                                {
+                                    Date now1 = new Date();
+                                    now1.setSeconds(now1.getSeconds() + 45);
+                                    db.setResult("Bid Placed");
+                                    CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, domain,oldAccount);
+                                    ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
+                                    checkOutbid.setScheduledFuture(scheduledFuture);
+                                    enterTaskMap(domain, scheduledFuture, "co");
+                                }
+
+
+                            } else {
+                                db = new DBdetails(domain, null, "Namecheap", String.valueOf(currbid), null, nc.getAuctionType(), "Bid Scheduled", finalEndTime, endTimeist, endTimeist, false, ncid);
+                                db.setTime_left(time_left);
+                                db.setBidAmount(String.valueOf(bid));
+                                db.setEstibot(nc.getEstibotValue());
+                                db.setAccount(changeAccount?!oldAccount:oldAccount);
+
+                            }
+                            db.setScheduled(true);
+
+                            repo.save(db);
+                            String time = timeft.format(now);
+                            Notification notif= notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist));
+                            User user=getUser(user_id);
+                            String userName=user.getEmail();
+                            saveAction("Bid Scheduled","Bubble",chat_title,user,db,notif,true,domain,userName);
+                            logger.info("BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist);
+                        }, threadPoolExecutor);
+                        controller.putESTinDBSingle(cf);
+                        return 0;
+                    } else {
+                        CompletableFuture.runAsync(() -> {
+                            Date now = new Date();
+                            String time = ft1.format(now);
+                            telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid);
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                            User user=getUser(user_id);
+                            String userName=user.getEmail();
+                            saveAction("Bid Scheduled","Bubble",chat_title,user,repo.findByNamecheapid(ncid),notif,false,domain,userName);
+
+                            logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextBid);
+                        }, threadPoolExecutor);
+                        return minNextBid;
+                    }
+                } else {
+                    CompletableFuture.runAsync(() -> {
+                        Date now = new Date();
+                        String time = ft1.format(now);
+                        telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as auction has ended");
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                        User user=getUser(user_id);
+                        String userName=user.getEmail();
+                        saveAction("Bid Scheduled","Bubble",chat_title,user,repo.findByNamecheapid(ncid),notif,false,domain,userName);
+                        logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended");
+                    }, threadPoolExecutor);
+                    return 2;
+                }
+            }
+            else
+            {
+                CompletableFuture.runAsync(() ->
+                {
+                    Date now = new Date();
+                    String time = timeft.format(now);
+                    telegram.sendAlert(-1001763199668l, 1005l, "Namecheap: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                    Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                    User user=getUser(user_id);
+                    String userName=user.getEmail();
+                    saveAction("Bid Scheduled","Bubble",chat_title,user,repo.findByNamecheapid(ncid),notif,false,domain,userName);
                     logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
                 }, threadPoolExecutor);
                 return 2;
@@ -1570,7 +2003,7 @@ b=false;
 
 
 
-    @PostMapping("/bulkschedulenc")
+    @PostMapping("/bulkschedulenc")@PreAuthorize("hasAuthority('APPROLE_Bid_NC')")
     List<Integer> bulkschedule(@RequestBody List<List<String>> ddlist)
     {
         CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList1(ddlist);
@@ -1585,9 +2018,9 @@ b=false;
                 String bearer=getAccount(domain);
                 boolean oldAccount=getAccountBoolean(domain);
                 ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
-                AuctionDetailNC nc = rn.getItems().get(0);
-                if(nc!=null&&nc.getStatus()!=null)
-                {
+
+                if(rn.getItems()!=null&&rn.getItems().get(0)!=null)
+                {AuctionDetailNC nc = rn.getItems().get(0);
                     if (nc.getStatus().equals("active")) {
                 float minNextBid=nc.getMinBid();
                 if(minNextBid<=maxprice)
@@ -1603,10 +2036,14 @@ b=false;
                         logger.info(p.getMessage());
                         continue;
                     }
-                    Date now = new Date();
-                    if (d.getTime() - now.getTime() < 300000) {
-                        d.setSeconds(d.getSeconds() - 10);
-                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
+                    Date now = new Date(); if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                    d.setSeconds(d.getSeconds() - bufferQ);
+                    ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                    enterTaskMap(domain, task, "pb");
+                }
+                else if (d.getTime() - now.getTime() < 300000) {
+                        d.setSeconds(d.getSeconds() - buffer);
+                        ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
                         enterTaskMap(domain, task, "pb");
 
                     } else {
@@ -1643,7 +2080,7 @@ b=false;
                             CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, domain,oldAccount);
                             ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
                             checkOutbid.setScheduledFuture(scheduledFuture);
-                            updateTaskMap(domain, scheduledFuture, "co");
+                            enterTaskMap(domain, scheduledFuture, "co");
                         }
                         repo.save(db);
                     } else {
@@ -1656,7 +2093,8 @@ b=false;
                         repo.save(db);
                     }
                     String time = timeft.format(now);
-                    notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + db.getDomain() + " for price: " + db.getBidAmount() + " at " + db.getBidplacetime()));
+                    Notification notif=notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + db.getDomain() + " for price: " + db.getBidAmount() + " at " + db.getBidplacetime()));
+                    saveAction("Bid Scheduled","UI",getUser(),db,notif,true,domain,getUserName());
                     logger.info("BID SCHEDULED for domain: " + db.getDomain() + " for price: " + db.getBidAmount() + " at " + db.getBidplacetime());
                 }
                 else
@@ -1664,7 +2102,8 @@ b=false;
                     Date now = new Date();
                     String time = ft1.format(now);
                     telegram.sendAlert(-930742733l,"Namecheap: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid);
-                    notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                    Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                    saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notif,false,domain,getUserName());
                     logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextBid);
 
                 }
@@ -1673,7 +2112,8 @@ b=false;
                             Date now = new Date();
                             String time = ft1.format(now);
                             telegram.sendAlert(-930742733l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as auction has ended");
-                            notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                            saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notif,false,domain,getUserName());
                             logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended");
                         }, threadPoolExecutor);
 
@@ -1686,7 +2126,8 @@ b=false;
                         Date now = new Date();
                         String time = timeft.format(now);
                         telegram.sendAlert(-930742733l, "Namecheap: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
-                        notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                        saveAction("Bid Scheduled","UI",getUser(),repo.findTopByDomain(domain),notif,false,domain,getUserName());
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
                     }, threadPoolExecutor);
 
@@ -1835,7 +2276,7 @@ b=false;
         return l;
     }
 */
-    BulkScheduleResponse bulkschedulebot(@RequestBody List<List<String>> ddlist, boolean account)
+    BulkScheduleResponse bulkschedulebot(@RequestBody List<List<String>> ddlist, boolean account,Long user_id)
     {
         CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList1(ddlist);
         List<Integer> l= new ArrayList<>();
@@ -1846,15 +2287,14 @@ b=false;
         for(int i=0;i< ddlist.size();i++)
         {
             int l1=ddlist.get(i).size();
-            String domain = ddlist.get(i).get(l1-2).toLowerCase();
-            Float maxprice= Float.valueOf(ddlist.get(i).get(l1-1));
+            String domain = ddlist.get(i).get(0).toLowerCase();
+            Float maxprice= Float.valueOf(ddlist.get(i).get(1));
             try {
                 String bearer=getAccount(domain);
                 boolean oldAccount= getAccountBoolean(domain);
                 ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
-                AuctionDetailNC nc = rn.getItems().get(0);
-                if(nc!=null&&nc.getStatus()!=null)
-                {
+                if(rn.getItems()!=null&&rn.getItems().get(0)!=null)
+                {AuctionDetailNC nc = rn.getItems().get(0);
                     if (nc.getStatus().equals("active")) {
                         float minNextBid=nc.getMinBid();
                         if(minNextBid<=maxprice)
@@ -1871,9 +2311,14 @@ b=false;
                                 continue;
                             }
                             Date now = new Date();
-                            if (d.getTime() - now.getTime() < 300000) {
-                                d.setSeconds(d.getSeconds() - 12);
-                                ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
+                            if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                                d.setSeconds(d.getSeconds() - bufferQ);
+                                ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                                enterTaskMap(domain, task, "pb");
+                            }
+                            else if (d.getTime() - now.getTime() < 300000) {
+                                d.setSeconds(d.getSeconds() - buffer);
+                                ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
                                 enterTaskMap(domain, task, "pb",account);
 
                             } else {
@@ -1902,6 +2347,7 @@ b=false;
                                 db.setTime_left(time_left);
                                 db.setEstibot(nc.getEstibotValue());
                                 db.setScheduled(true);
+                                db.setAccount(account);
                                 if(db.getMyLastBid().equals(currbid))
                                 {
                                     Date now1 = new Date();
@@ -1910,20 +2356,50 @@ b=false;
                                     CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, domain,oldAccount);
                                     ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
                                     checkOutbid.setScheduledFuture(scheduledFuture);
-                                    updateTaskMap(domain, scheduledFuture, "co");
+                                    enterTaskMap(domain, scheduledFuture, "co");
                                 }
-                                repo.save(db);
                             } else {
                                 db = new DBdetails(domain, null, "Namecheap", String.valueOf(currbid), null, nc.getAuctionType(), "Bid Scheduled", endTime, endTimeist, "", false, ncid);
                                 db.setTime_left(time_left);
                                 db.setBidAmount(ddlist.get(i).get(1));
                                 db.setEstibot(nc.getEstibotValue());
                                 db.setScheduled(true);
-
-                                repo.save(db);
+                                db.setAccount(account);
                             }
+                            List<String> list=ddlist.get(i);
+                            if(list.size()>2)
+                            {
+                                if(list.size()==4)
+                                {
+                                    int fast=Integer.valueOf(list.get(3));
+                                    if(fast>10)
+                                    {
+                                        db.setFastBidAmount(list.get(3));
+                                        db.setFast_n(fastBidSetting.getFastN());
+                                    }
+                                    else {
+                                        db.setFast_n(fast);
+                                        db.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                    }
+                                }
+                                else if(list.size()==5)
+                                {
+                                    int fast=Integer.valueOf(list.get(3));
+                                    db.setFastBidAmount(list.get(4));
+                                    db.setFast_n(fast);
+                                }
+                                else if(list.size()==2)
+                                {
+                                    db.setFast_n(fastBidSetting.getFastN());
+                                    db.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                }
+                            }
+                            repo.save(db);
                             String time = timeft.format(now);
-                            notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + db.getDomain() + " for price: " + db.getBidAmount() + " at " + db.getBidplacetime()));
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + db.getDomain() + " for price: " + db.getBidAmount() + " at " + db.getBidplacetime()));
+                            User user=getUser(user_id);
+                            String userName=user.getEmail();
+                            saveAction("Bid Scheduled","CPanel",user,db,notif,true,domain,userName);
                             logger.info("BID SCHEDULED for domain: " + db.getDomain() + " for price: " + db.getBidAmount() + " at " + db.getBidplacetime());
                         }
                         else
@@ -1933,7 +2409,10 @@ b=false;
                             Date now = new Date();
                             String time = ft1.format(now);
                             telegram.sendAlert(-930742733l,"Namecheap: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid);
-                            notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                            User user=getUser(user_id);
+                            String userName=user.getEmail();
+                            saveAction("Bid Scheduled","CPanel",user,repo.findTopByDomain(domain),notif,false,domain,userName);
                             logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextBid);
 
                         }
@@ -1944,7 +2423,10 @@ b=false;
                             Date now = new Date();
                             String time = ft1.format(now);
                             telegram.sendAlert(-930742733l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as auction has ended");
-                            notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                            User user=getUser(user_id);
+                            String userName=user.getEmail();
+                            saveAction("Bid Scheduled","CPanel",user,repo.findTopByDomain(domain),notif,false,domain,userName);
                             logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended");
                         }, threadPoolExecutor);
 
@@ -1957,7 +2439,10 @@ b=false;
                         Date now = new Date();
                         String time = timeft.format(now);
                         telegram.sendAlert(-930742733l, "Namecheap: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
-                        notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                        User user=getUser(user_id);
+                        String userName=user.getEmail();
+                        saveAction("Bid Scheduled","CPanel",user,repo.findTopByDomain(domain),notif,false,domain,userName);
                         logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
                     }, threadPoolExecutor);
 
@@ -1980,7 +2465,208 @@ b=false;
         return res;
     }
 
-   // String bearer1="bearer cab3a5f74eee3c7a90027fa7a3081cd9CcawjwyrjfmyhQ5c+PfCADp9wDYnfd2ni6AozrVwtT93rjRaabhDbfp+mYQUhPCy";
+    BulkScheduleResponse bulkschedulebot2Accounts(List<List<String>> ddlist, Long user_id)
+    {
+        CompletableFuture<List<Estibot_Data>> cf=controller.getEstibotList1(ddlist);
+        List<Integer> l= new ArrayList<>();
+        BulkScheduleResponse res=null;
+        String s="";
+        int a=0;
+        int n= ddlist.size();
+        for(int i=0;i< ddlist.size();i++)
+        {
+            int l1=ddlist.get(i).size();
+            boolean account=false;
+            String domain = ddlist.get(i).get(0).toLowerCase();
+            Float maxprice1= Float.valueOf(ddlist.get(i).get(1));
+            Float maxprice=Float.valueOf(ddlist.get(i).get(2));
+            int ba=1;
+             if(maxprice1>maxprice)
+            {
+                float m=maxprice1;
+                maxprice1=maxprice;
+                maxprice=m;
+                account=true;
+                ba=2;
+            }
+            try {
+                String bearer=getAccount(domain);
+                boolean oldAccount= getAccountBoolean(domain);
+                ResponseAuctionDetailsNC rn = namecheapfeign.getAuctionDetails(bearer, domain);
+                if(rn.getItems()!=null&&rn.getItems().get(0)!=null)
+                {AuctionDetailNC nc = rn.getItems().get(0);
+                    if (nc.getStatus().equals("active")) {
+                        float minNextBid=nc.getMinBid();
+                        if(minNextBid<=maxprice)
+                        {
+                            String ncid = nc.getId();
+                            String endTime = nc.getEndDate();
+                            endTime = endTime.substring(0, endTime.length() - 5);
+                            Date d = new Date();
+
+                            try {
+                                d = parser.parse(endTime);
+                            } catch (ParseException p) {
+                                logger.info(p.getMessage());
+                                continue;
+                            }
+                            Date now = new Date();
+                            if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                                d.setSeconds(d.getSeconds() - bufferQ);
+                                ScheduledFuture task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, endTime,true), d);
+                                enterTaskMap(domain, task, "pb");
+                            }
+                            else if (d.getTime() - now.getTime() < 300000) {
+                                d.setSeconds(d.getSeconds() - buffer);
+                                ScheduledFuture task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, endTime,false), d);
+                                enterTaskMap(domain, task, "pb",account);
+
+                            } else {
+                                //d.setMinutes(d.getMinutes()-4);
+                                Date d1 = new Date(d.getTime() - 270000);
+                                ScheduledFuture task = taskScheduler.schedule(new PreCheckB(ncid, domain, maxprice), d1);
+                                enterTaskMap(domain, task, "pc",account);
+
+                            }
+                            a++;
+                            String endTimeist = ft1.format(d);
+                            String time_left = relTime(d);
+                            telegram.sendAlert(-1001763199668l,1005l, "Namecheap: BID SCHEDULED for domain: " + domain + " for max price: " + maxprice + " at " + endTimeist);
+                            logger.info(endTimeist);
+                            Float currbid = nc.getPrice();
+                            Optional<DBdetails> op = Optional.ofNullable(repo.findByNamecheapid(ncid));
+                            DBdetails db = null;
+
+                            if (op.isPresent()) {
+                                db = op.get();
+                                db.setCurrbid(String.valueOf(currbid));
+                                db.setBidAmount(String.valueOf(maxprice));
+                                db.setResult("Bid Scheduled");
+                                db.setEndTimepst(endTime);
+                                db.setEndTimeist(endTimeist);
+                                db.setTime_left(time_left);
+                                db.setEstibot(nc.getEstibotValue());
+                                db.setScheduled(true);
+                                db.setAccount(account);
+                                if(db.getMyLastBid().equals(currbid))
+                                {
+                                    Date now1 = new Date();
+                                    now1.setSeconds(now1.getSeconds() + 45);
+                                    db.setResult("Bid Placed");
+                                    CheckOutbid checkOutbid = new CheckOutbid(currbid, maxprice, ncid, domain,oldAccount);
+                                    ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now1, 30000);
+                                    checkOutbid.setScheduledFuture(scheduledFuture);
+                                    enterTaskMap(domain, scheduledFuture, "co");
+                                }
+
+                            } else {
+                                db = new DBdetails(domain, null, "Namecheap", String.valueOf(currbid), null, nc.getAuctionType(), "Bid Scheduled", endTime, endTimeist, "", false, ncid);
+                                db.setTime_left(time_left);
+
+                                db.setBidAmount(String.valueOf(maxprice));
+                                db.setEstibot(nc.getEstibotValue());
+                                db.setScheduled(true);
+                                db.setAccount(account);
+
+                            }
+                            db.setBothAccount(ba);
+                            db.setPreBidAmount(String.valueOf(maxprice1));
+                            List<String> list=ddlist.get(i);
+                            if(list.size()>3)
+                            {
+                                if(list.size()==5)
+                                {
+                                    int fast=Integer.valueOf(list.get(4));
+                                    if(fast>10)
+                                    {
+                                        db.setFastBidAmount(list.get(4));
+                                        db.setFast_n(fastBidSetting.getFastN());
+                                    }
+                                    else {
+                                        db.setFast_n(fast);
+                                        db.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                    }
+                                }
+                                else if(list.size()==6)
+                                {
+                                    int fast=Integer.valueOf(list.get(4));
+                                    db.setFastBidAmount(list.get(5));
+                                    db.setFast_n(fast);
+                                }
+                                else if(list.size()==3)
+                                {
+                                    db.setFast_n(fastBidSetting.getFastN());
+                                    db.setFastBidAmount(String.valueOf(fastBidSetting.getFastBidAmount()));
+                                }
+                            }
+                            repo.save(db);
+                            String time = timeft.format(now);
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "BID SCHEDULED for domain: " + db.getDomain() + " for price: " + maxprice1+","+maxprice + " at " + db.getBidplacetime()));
+                            User user=getUser(user_id);String userName= user.getEmail();
+                            saveAction("Bid Scheduled","CPanel",user,db,notif,true,domain,userName);
+                            logger.info("BID SCHEDULED for domain: " + db.getDomain() + " for price: " + maxprice1+","+maxprice + " at " + db.getBidplacetime());
+                        }
+                        else
+                        {
+                            String text="Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid;
+                            s=s+text+"\n";
+                            Date now = new Date();
+                            String time = ft1.format(now);
+                            telegram.sendAlert(-930742733l,"Namecheap: Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid);
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as bid value is lower than accepted bid of " + minNextBid));
+                            User user=getUser(user_id);String userName= user.getEmail();
+                            saveAction("Bid Scheduled","CPanel",user,repo.findTopByDomain(domain),notif,false,domain,userName);
+                            logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as bid value is lower than accepted bid of " + minNextBid);
+
+                        }
+                    } else {
+                        String text="Bid NOT SCHEDULED for" + domain + " as auction has ended";
+                        s=s+text+"\n";
+                        CompletableFuture.runAsync(() -> {
+                            Date now = new Date();
+                            String time = ft1.format(now);
+                            telegram.sendAlert(-930742733l, "Namecheap: Bid NOT SCHEDULED for" + domain + " as auction has ended");
+                            Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for" + domain + " as auction has ended"));
+                            User user=getUser(user_id);String userName= user.getEmail();
+                            saveAction("Bid Scheduled","CPanel",user,repo.findTopByDomain(domain),notif,false,domain,userName);
+                            logger.info(time + ": Bid NOT SCHEDULED for " + domain + " as auction has ended");
+                        }, threadPoolExecutor);
+
+                    }
+                }
+                else
+                {
+                    CompletableFuture.runAsync(() ->
+                    {
+                        Date now = new Date();
+                        String time = timeft.format(now);
+                        telegram.sendAlert(-930742733l, "Namecheap: Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                        Notification notif=notifRepo.save(new Notification("Namecheap", time, "Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended."));
+                        User user=getUser(user_id);String userName= user.getEmail();
+                        saveAction("Bid Scheduled","CPanel",user,repo.findTopByDomain(domain),notif,false,domain,userName);
+                        logger.info(time + ": Bid NOT SCHEDULED for " + domain + " because response is null, maybe auction has ended.");
+                    }, threadPoolExecutor);
+
+                }
+            }
+            catch(Exception e)
+            {
+                Date now= new Date();
+                String time= timeft.format(now);
+                notifRepo.save(new Notification("Namecheap",time,"BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice));
+                logger.info("BID NOT SCHEDULED for domain: "+domain+ " for price: "+maxprice);
+                logger.info(e.getMessage());
+            }
+
+        }
+        controller.putESTinDB(cf);
+        l.add(a);
+        l.add(n);
+        res= new BulkScheduleResponse(l,s);
+        return res;
+    }
+
+    // String bearer1="bearer cab3a5f74eee3c7a90027fa7a3081cd9CcawjwyrjfmyhQ5c+PfCADp9wDYnfd2ni6AozrVwtT93rjRaabhDbfp+mYQUhPCy";
 
     /*BulkScheduleResponse bulkschedulebot1(@RequestBody List<List<String>> ddlist)
     {
@@ -2116,7 +2802,9 @@ b=false;
         return res;
     }*/
 
+
     @PostMapping("/bulkbidnc")
+    @PreAuthorize("hasAuthority('APPROLE_Bid_NC')")
     List<Integer> bulkbid(@RequestBody List<List<String>> ddlist)
     {
         CompletableFuture<List<Estibot_Data>> cf= controller.getEstibotList1(ddlist);
@@ -2194,7 +2882,8 @@ b=false;
                     Date now= new Date();
                     String time= timeft.format(now);
                     telegram.sendAlert(-1001763199668l,1005l, "Namecheap: INSTANT BID PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD");
-                    notifRepo.save(new Notification("Namecheap",time,"INSTANT BID PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD"));
+                    Notification notif=notifRepo.save(new Notification("Namecheap",time,"INSTANT BID PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD"));
+                    saveAction("Bid Scheduled","UI",getUser(),db,notif,true,domain,getUserName());
 
                     logger.info("Namecheap: instant bid placed of domain: " + domain);
                 }else
@@ -2223,7 +2912,8 @@ b=false;
                         db.setBidAmount(ddlist.get(i).get(1));
                         db.setEstibot(nc.getEstibotValue());
 
-                        notifRepo.save(new Notification("Namecheap: INSTANT BID NOT PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD at " + new Date()));
+                        Notification notif=notifRepo.save(new Notification("Namecheap: INSTANT BID NOT PLACED for " + domain + " at price " + bid.getMaxAmount() + " USD at " + new Date()));
+                        saveAction("Bid Scheduled","UI",getUser(),db,notif,false,domain,getUserName());
 
                         logger.info("Namecheap: instant bid not placed of domain: " + domain);
                         repo.save(db);
@@ -2289,7 +2979,14 @@ b=false;
     @GetMapping("/getlivenc")
     List<Livencdb> getLive()
     {
-        return liveNcRepo.findByLiveTrueOrderByIddDesc();
+        return liveNcRepo.findAllByOrderByEstibotValueDesc();//liveNcRepo.findByLiveTrueOrderByIddDesc();
+    }
+
+    @GetMapping("/getlivencupdated")
+    List<Livencdb> getLiveUpdated()
+    {
+        refreshNCLive();
+        return liveNcRepo.findAllByOrderByEstibotValueDesc();//liveNcRepo.findByLiveTrueOrderByIddDesc();
     }
 
     /*@GetMapping("/getplacenc/{id}")
@@ -2327,13 +3024,159 @@ b=false;
         }
     }
 
+    void refreshNCLive()
+    {
+        String bidCount="1_";
+        Date now= new Date();
+        String addtime=ft1.format(now);
+        Long t1= now.getTime()/1000;
+        Map<String,String> map1=new HashMap<>(map);
+        if(now.getHours()<=16&&now.getMinutes()<=30)
+        {
+            now.setHours(16);now.setMinutes(30);
+        }
+        else
+        {
+            now.setDate(now.getDate()+1);now.setHours(16);now.setMinutes(30);
+        }
+        Long t2=now.getTime()/1000;
+        //Long t2=1669905052l;
+        String t=String.valueOf(t1)+"_"+String.valueOf(t2);
+        //String t="1669908629_1669912229";
+        logger.info(t);
+
+        String bearer=getPrimaryAccount();
+        ResponseLivedb rl= namecheapfeign.getAuctionDetailslive(bearer,bidCount,t,"end_time");
+        int total= rl.getPages().getTotal();
+        List<Livencdb> items= rl.getItems();
+        int r=total/100;
+        int d=total%100;
+        int n= items.size();
+        int l=0;
+        for(int i=0;i<n;i++)
+        {
+            Livencdb lnc= items.get(i);
+
+                    String id=lnc.getId();
+                    String domain=lnc.getName();
+                    float currbid=lnc.getPrice();
+                    String endTime = lnc.getEndDate();
+                    endTime = endTime.substring(0, endTime.length() - 5);
+                    Date d1 = null;
+                    String time_left;
+                    int est=lnc.getEstibotValue();
+                    try {
+                        d1 = parser.parse(endTime);
+                        //endTimeist = ft1.format(d);
+                        time_left = relTime(d1);
+
+                    } catch (ParseException p) {
+                        logger.info(p.getMessage());
+                        continue;
+                    }
+                    lnc.setTime_left(time_left);
+            lnc.setLive(true);
+                lnc.setAddtime(addtime);
+                logger.info(lnc.getIdd()+"");
+                liveNcRepo.save(lnc);
+                map1.remove(lnc.getId());
+
+        }
+        if(r>=1)
+        {
+            if(d==0)
+            {
+                for(int k=1;k<r;k++)
+                {
+                    ResponseLivedb rl1= namecheapfeign.getAuctionDetailslive1(bearer,bidCount,t,"end_time",k+1);
+                    List<Livencdb> items1= rl1.getItems();
+                    int n1= items1.size();
+                    for(int i=0;i<n1;i++)
+                    {
+                        Livencdb lnc = items1.get(i);
+                                String id=lnc.getId();
+                                String domain=lnc.getName();
+                                float currbid=lnc.getPrice();
+                                String endTime = lnc.getEndDate();
+                                endTime = endTime.substring(0, endTime.length() - 5);
+                                Date d1 = null;
+                                String time_left;
+                                int est=lnc.getEstibotValue();
+                                try {
+                                    d1 = parser.parse(endTime);
+                                    //endTimeist = ft1.format(d);
+                                    time_left = relTime(d1);
+
+                                } catch (ParseException p) {
+                                    logger.info(p.getMessage());
+                                    continue;
+                                }
+                        lnc.setTime_left(time_left);
+                               lnc.setAddtime(addtime);
+                        lnc.setLive(true);
+                            liveNcRepo.save(lnc);
+                            map1.remove(lnc.getId());
+                    }
+                }
+            }
+            else
+            {
+                for(int k=1;k<=r;k++)
+                {
+                    ResponseLivedb rl1= namecheapfeign.getAuctionDetailslive1(bearer,bidCount,t,"end_time",k+1);
+                    List<Livencdb> items1= rl1.getItems();
+                    int n1= items1.size();
+                    for(int i=0;i<n1;i++)
+                    {
+                        Livencdb lnc = items1.get(i);
+                                String id=lnc.getId();
+                                String domain=lnc.getName();
+                                float currbid=lnc.getPrice();
+                                String endTime = lnc.getEndDate();
+                                endTime = endTime.substring(0, endTime.length() - 5);
+                                Date d1 = null;
+                                String time_left;
+                                int est=lnc.getEstibotValue();
+                                try {
+                                    d1 = parser.parse(endTime);
+                                    //endTimeist = ft1.format(d);
+                                    time_left = relTime(d1);
+
+                                } catch (ParseException p) {
+                                    logger.info(p.getMessage());
+                                    continue;
+                                }
+                                lnc.setTime_left(time_left);
+                            lnc.setAddtime(addtime);
+                        lnc.setLive(true);
+                            liveNcRepo.save(lnc);
+                            map1.remove(lnc.getId());
+
+                    }
+                }
+            }
+        }
+
+        if(!map1.isEmpty())
+            for (Map.Entry<String,String> mapElement : map1.entrySet())
+            {
+                String value = mapElement.getKey();
+                try {
+                    liveNcRepo.deleteByAuctionid(value);
+                }
+                catch(Exception e)
+                {
+                    logger.info(e.getMessage());
+                }
+            }
+    }
+
    @Scheduled(cron = "0 09 20 ? * *", zone = "IST")
     @GetMapping("/startlivenc")
     ResponseLivedb startLivenc()
     {
         logger.info("Starting NameCheap Live Service");
         LiveFilterSettings settings= settingsRepo.findById(1).get();
-
         try {
             scheduledFuture.cancel(true);
         }
@@ -2356,6 +3199,7 @@ b=false;
         //liveNcRepo.deleteAll();
         String bidCount="1_";
         Date now= new Date();
+        String addtime=ft1.format(now);
         Long t1= now.getTime()/1000;
         Float hours=2f;
         Long t2=t1+hours.longValue()*3600;
@@ -2399,11 +3243,13 @@ b=false;
                         logger.info(p.getMessage());
                         continue;
                     }
-
+                    if(!taskmap.containsKey(domain.toLowerCase()))
                     sendLiveI(time_left,domain,lnc.getMinBid(),est,id);
+                    else
+                        sendLiveI(time_left,domain,lnc.getMinBid(),est,id,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
 
                 }
-
+                lnc.setAddtime(addtime);
                 liveNcRepo.save(lnc);
                 map.put(lnc.getId(), lnc.getName().toLowerCase());
             }
@@ -2442,9 +3288,15 @@ b=false;
                                     logger.info(p.getMessage());
                                     continue;
                                 }
-                                sendLiveI(time_left,domain,lnc.getMinBid(),est,id);
+                                if(!taskmap.containsKey(domain.toLowerCase()))
+                                    sendLiveI(time_left,domain,lnc.getMinBid(),est,id);
+                                else
+                                    sendLiveI(time_left,domain,lnc.getMinBid(),est,id,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
+
 
                             }
+                            lnc.setAddtime(addtime);
+
                             liveNcRepo.save(lnc);
                             map.put(lnc.getId(), lnc.getName().toLowerCase());
                         }
@@ -2484,9 +3336,16 @@ b=false;
                                         logger.info(p.getMessage());
                                         continue;
                                     }
-                                    sendLiveI(time_left,domain,lnc.getMinBid(),est,id);
+
+                                    if(!taskmap.containsKey(domain.toLowerCase()))
+                                        sendLiveI(time_left,domain,lnc.getMinBid(),est,id);
+                                    else
+                                        sendLiveI(time_left,domain,lnc.getMinBid(),est,id,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
+
 
                                 }
+                                lnc.setAddtime(addtime);
+
                                 liveNcRepo.save(lnc);
                                 map.put(lnc.getId(), lnc.getName().toLowerCase());
                             }
@@ -2494,11 +3353,12 @@ b=false;
                     }
                 }
             }
-        try {
+        try
+        {
             sendHighlights(l);
             sendList(l);
         }
-        catch (Exception e)
+        catch(Exception e)
         {
             logger.info(e.getMessage());
         }
@@ -2897,7 +3757,65 @@ b=false;
         }
 
     }
-    @GetMapping("/cancel/nc")
+
+
+    void sendListCurrent(long chat_id)
+    {
+
+        refreshNCLive();
+        int n=25;
+        //           currbid, est, separators, space around separators
+        int t= n+    6  +   6  +  2   +      4;
+        int d= 4096/t;
+        d=d-6;
+        String s=String.format("| %-"+(t-4)+"s |%n", "Namecheap Highlights");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        s=s+ String.format("%-"+n+"s | %-6s | %6s%n","Domain", "Price","EST");
+        for(int i=0;i<t;i++)
+        {
+            s=s+"-";
+        }
+        s=s+"\n\n";
+        List<Livencdb> list=liveNcRepo.findByHighlightTrueOrderByEstibotValueDesc();
+        int l=list.size();
+        int j=0;
+        while(l>0) {
+            for (int i = 0; i < l && i < d; i++) {
+                Livencdb lnc = list.get(j);
+                j++;
+                s = s + String.format("%-"+n+"s | %-6.0f | %6d%n", lnc.getName(), lnc.getPrice(), lnc.getEstibotValue());
+
+
+            }
+            // System.out.println(s);
+            telegram.sendAlert(chat_id,"<pre>"+s+"</pre>","HTML");
+            //telegram.sendAlert(-1001763199668l,1017l,"<pre>"+s+"</pre>","HTML");
+
+            l=l-d;
+            s="";
+        }
+
+    }
+    @GetMapping("/cancel/nc")@PreAuthorize("hasAuthority('APPROLE_Bid_NC')")
+    void cancelBidweb(@RequestParam String domain,@RequestParam String ncid)
+    {
+        logger.info(domain+ncid);
+        deleteTaskMap(domain);
+        DBdetails db= repo.findByNamecheapid(ncid);
+        db.setResult("Bid Cancelled");
+        db.setScheduled(false);
+        repo.save(db);
+        Date now=new Date();
+        String time = timeft.format(now);
+        Notification notification=notifRepo.save(new Notification("Dynadot", time, "Bidding Cancelled of " + domain ));
+        saveAction("Bid Cancelled","UI List",getUser(),db,notification,true,domain,getUserName());
+
+    }
+
     void cancelBid(@RequestParam String domain,@RequestParam String ncid)
     {
         logger.info(domain+ncid);
@@ -2906,6 +3824,7 @@ b=false;
         db.setResult("Bid Cancelled");
         db.setScheduled(false);
         repo.save(db);
+
     }
 
   //  @Autowired
@@ -3018,9 +3937,15 @@ b=false;
                          if(dom[1].equalsIgnoreCase("com"))
                          {
                              String leads=getLeads(dom[0]);
+                             if(!taskmap.containsKey(domain.toLowerCase()))
                              sendLive(time_left,domain,item.getMinBid(),est,id,leads);
+                             else sendLive(time_left,domain,item.getMinBid(),est,id,leads,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
                          }
-                         else sendLive(time_left,domain,item.getMinBid(),est,id);
+                         else {
+                             if(!taskmap.containsKey(domain.toLowerCase()))
+                             sendLive(time_left,domain,item.getMinBid(),est,id);
+                             else sendLive(time_left,domain,item.getMinBid(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(),est,id);
+                         }
                      }
                      Date date= new Date();
                      String addtime= ft1.format(date);
@@ -3080,9 +4005,15 @@ b=false;
                                      if(dom[1].equalsIgnoreCase("com"))
                                      {
                                          String leads=getLeads(dom[0]);
-                                         sendLive(time_left,domain,item1.getMinBid(),est,id,leads);
+                                         if(!taskmap.containsKey(domain.toLowerCase()))
+                                             sendLive(time_left,domain,item1.getMinBid(),est,id,leads);
+                                         else sendLive(time_left,domain,item1.getMinBid(),est,id,leads,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
                                      }
-                                     else sendLive(time_left,domain,item1.getMinBid(),est,id);
+                                     else {
+                                         if(!taskmap.containsKey(domain.toLowerCase()))
+                                             sendLive(time_left,domain,item1.getMinBid(),est,id);
+                                         else sendLive(time_left,domain,item1.getMinBid(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(),est,id);
+                                     }
                                  }
                                  Date date = new Date();
                                  String addtime = ft1.format(date);
@@ -3142,9 +4073,15 @@ b=false;
                                      if(dom[1].equalsIgnoreCase("com"))
                                      {
                                          String leads=getLeads(dom[0]);
-                                         sendLive(time_left,domain,item1.getMinBid(),est,id,leads);
+                                         if(!taskmap.containsKey(domain.toLowerCase()))
+                                             sendLive(time_left,domain,item1.getMinBid(),est,id,leads);
+                                         else sendLive(time_left,domain,item1.getMinBid(),est,id,leads,repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount());
                                      }
-                                     else sendLive(time_left,domain,item1.getMinBid(),est,id);
+                                     else {
+                                         if(!taskmap.containsKey(domain.toLowerCase()))
+                                             sendLive(time_left,domain,item1.getMinBid(),est,id);
+                                         else sendLive(time_left,domain,item1.getMinBid(),repo.findByDomainIgnoreCaseAndScheduledTrue(domain).getBidAmount(),est,id);
+                                     }
                                  }
                                  Date date = new Date();
                                  String addtime = ft1.format(date);
@@ -3190,9 +4127,12 @@ b=false;
             map1.clear();
             String bidCount="1_";
             Date now= new Date();
-            Long t1= now.getTime()/1000;
+            String addtime= ft1.format(now);
+
             Float hours=24f;
-            Long t2=t1+hours.longValue()*3600;
+            Long t1= now.getTime()/1000+22*3600;
+
+            Long t2=t1+2*3600;
             //Long t2=1669905052l;
             String t=String.valueOf(t1)+"_"+String.valueOf(t2);
             //String t="1669908629_1669912229";
@@ -3229,7 +4169,7 @@ b=false;
                             l=Math.max(l,lnc.getName().length());
                             lnc.setEndList(true);
                             lnc.setHighlight(isHighlight(lnc.getName(),lnc.getEstibotValue().intValue(),settings));
-
+                            lnc.setAddtime(addtime);
                             liveNcRepo.save(lnc);
                             map1.put(items1.get(i).getId(),items1.get(i).getName().toLowerCase());
                         }
@@ -3247,6 +4187,7 @@ b=false;
                             Livencdb lnc=items.get(i);
                             lnc.setEndList(true);
                             lnc.setHighlight(isHighlight(lnc.getName(),lnc.getEstibotValue().intValue(),settings));
+                            lnc.setAddtime(addtime);
 
                             l=Math.max(l,lnc.getName().length());
                             liveNcRepo.save(lnc);
@@ -3339,11 +4280,19 @@ b=false;
                 try
                 {
                     Date d= parser.parse(endTime);
-                    d.setSeconds(d.getSeconds()-10);
-                   ScheduledFuture task= taskScheduler.schedule(new PlaceBid(ncid,maxprice,domain,endTime),d);
+                    Date now= new Date();
+                    ScheduledFuture task;
+                    if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                        d.setSeconds(d.getSeconds() - bufferQ);
+                        task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                    }
+                    else {
+                        d.setSeconds(d.getSeconds() - buffer);
+                        task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
+                    }
+
                     updateTaskMap(domain,task,"pb");
 
-                    Date now= new Date();
                     String time= timeft.format(now);
                     String bidist= ft1.format(d);
                     notifRepo.save(new Notification("Namecheap",time,"Prechecking, Bid SCHEDULED for " + domain + " at price " + maxprice + " at time " + bidist));
@@ -3396,7 +4345,6 @@ b=false;
             DBdetails db= repo.findByNamecheapid(ncid);
             try{
              detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain);
-
             }
             catch(Exception e)
             {
@@ -3449,13 +4397,20 @@ b=false;
                         try
                         {
                             Date d = parser.parse(endTime);
-                            d.setSeconds(d.getSeconds() - 10);
-                           ScheduledFuture task= taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime), d);
+                            Date now= new Date();
+                            ScheduledFuture task;
+                            if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                                d.setSeconds(d.getSeconds() - bufferQ);
+                                task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,true), d);
+                            }
+                            else {
+                                d.setSeconds(d.getSeconds() - buffer);
+                                task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, endTime,false), d);
+                            }
                             updateTaskMap(domain,task,"pb");
                             DBdetails dBdetails= repo.findByNamecheapid(ncid);
                             dBdetails.setResult("Bid Placed And Scheduled");
                             repo.save(dBdetails);
-                            Date now= new Date();
                             String time= timeft.format(now);
                             String bidist= ft1.format(d);
                             telegram.sendAlert(-1001763199668l,1004l, "Namecheap: Outbid, BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+bidist);
@@ -3507,38 +4462,79 @@ b=false;
         }
     }
 
+    DBdetails getDBinTime(String ncid)
+    {
+       DBdetails db= repo.findByNamecheapid(ncid);
+       if(db!=null)
+           return db;
+       else
+       {
+           try {
+               Thread.sleep(500);
+           }
+           catch(InterruptedException i)
+           {
+               logger.info(i.getMessage());
+           }
+           return getDBinTime(ncid);
+       }
+    }
+
+
     @Autowired
     NamecheapfeignB namecheapfeignB;
-    public class PlaceBid implements Runnable{
-
-
-
+    public class PlaceBid implements Runnable
+    {
         String ncid,domain, timeId;
         Float maxprice;
-        public PlaceBid(String ncid, Float maxprice,String domain, String timeId)
+        boolean q;
+
+        public PlaceBid(String ncid, Float maxprice, String domain, String timeId, boolean q) {
+            this.ncid = ncid;
+            this.domain = domain;
+            this.timeId = timeId;
+            this.maxprice = maxprice;
+            this.q = q;
+        }
+
+    /*    public PlaceBid(String ncid, Float maxprice, String domain, String timeId)
         {
             this.ncid=ncid;
             this.maxprice=maxprice;
             this.domain=domain;
             this.timeId=timeId;
             //this.service= new Service();
-        }
+        }*/
         @Override
         public void run() {
             SimpleDateFormat parser= parser();
             SimpleDateFormat ft1=ft1();
-            DBdetails db= repo.findByNamecheapid(ncid);
+            DBdetails db= getDBinTime(ncid);
             AuctionDetailNC detail=null;
-            String bearer=getAccount(db);
+            String bearer=db!=null?getAccount(db):accounts.get(false);
 
             try{
-             detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
+                if(q)
+                    detail= namecheapfeignBQ.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
+                else detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
             }
             catch(Exception e)
             {
-                db.setResult("API Error Fetch pb");
-                repo.save(db);
-                return;
+                try {
+                    bearer = accounts.get(!taskmap.get(domain).isAccount());
+                    if(q)
+                        detail= namecheapfeignBQ.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
+                    else detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
+                    taskmap.get(domain).setAccount(!taskmap.get(domain).isAccount());
+                    db.setAccount(!db.getAccount());
+                    repo.save(db);
+                }
+                catch(Exception e1)
+                {
+                    db.setResult("API Error Fetch pb");
+                    repo.save(db);
+                    return;
+                }
             }
             String timeId1= detail.getEndDate().substring(0,detail.getEndDate().length()-5);
             Float price= detail.getMinBid();
@@ -3550,9 +4546,17 @@ b=false;
 
                     try {
                         Date d = parser.parse(timeId1);
-                        d.setSeconds(d.getSeconds() - 10);
-                        ScheduledFuture task=taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId1), d);
                         Date now= new Date();
+                        ScheduledFuture task;
+                        if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                            d.setSeconds(d.getSeconds() - bufferQ);
+                            task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId1,true), d);
+                        }
+                        else {
+                            d.setSeconds(d.getSeconds() - buffer);
+                            task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId1,false), d);
+                        }
+
                         String time= timeft.format(now);
                         String bidist= ft1.format(d);
                         telegram.sendAlert(-1001763199668l,1004l, "Prechecking, Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidist);
@@ -3611,18 +4615,33 @@ b=false;
                     Bidnc bid = new Bidnc(price);
                     ResponsePlaceBidNc pb =null;
                     try{
+                        if(q)
+                            pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                        else
                      pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);
                 }
             catch(Exception e)
                 {
-                    db.setResult("API Error Bid pb");
-                    repo.save(db);
-                    return;
+                    try {
+                        bearer = accounts.get(!taskmap.get(domain).isAccount());
+                        if(q)
+                            pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                        else
+                            pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);                        taskmap.get(domain).setAccount(!taskmap.get(domain).isAccount());
+                        db.setAccount(!db.getAccount());
+                        repo.save(db);
+                    }
+                    catch(Exception e1) {
+                        db.setResult("API Error Bid pb");
+                        repo.save(db);
+                        return;
+                    }
                 }
                     //String domain= repo.findByNamecheapid(ncid).getDomain();
                     if (pb.getStatus().equals("processed")) {
                         Date d = new Date();
                         String time = timeft.format(d);
+                        boolean scheduleCO=true;
                         telegram.sendAlert(-1001763199668l, 1004l, "Namecheap: Scheduled Bid PLACED for " + domain + " at price " + price + " USD");
                         notifRepo.save(new Notification("Namecheap", time, "Scheduled Bid PLACED for " + domain + " at price " + price + " USD"));
                         logger.info(time + ": Scheduled Bid Placed of domain: " + domain + " at price " + price + " USD");
@@ -3641,9 +4660,132 @@ b=false;
                             if (pb.getAmount() > maxprice)
                                 db.setBidAmount(String.valueOf(pb.getAmount()));
                             db.setResult("Bid Placed");
-                            repo.save(db);
+                            db.setFast_i(0);
+                            sendWatchlist("Our Bid Placed","05m",domain,pb.getAmount(),db.getBidAmount(),db.getEstibot(),ncid);
+
                         } else {
-                            AuctionDetailNC detail1 = namecheapfeignB.getAuctionDetailbyId(bearer, ncid,domain);
+
+                            if(db.getFastBid()&&(Float.valueOf(db.getFastBidAmount())>=price))
+                            {
+                                db.setFast_i(db.getFast_i()+1);
+                                if(db.getFast_i()>db.getFast_n())
+                                {
+                                    telegram.sendAlert(-1001763199668l,1004l,"Namecheap: Started Fast Bidding on " + domain);
+                                    notifRepo.save(new Notification("Namecheap",time,"Started Fast Bidding on " + domain));
+                                    logger.info(time+": Started Fast Bidding on domain: " + domain);
+                                    while(true)
+                                    {
+                                        try
+                                        {
+                                            Thread.sleep(1250);
+                                        }
+                                        catch(InterruptedException ie)
+                                        {
+                                            logger.info(ie.getMessage());
+                                        }
+
+                                        detail = namecheapfeignB.getAuctionDetailbyId(bearer, ncid,domain);
+                                        price= detail.getMinBid();
+                                        pricee= detail.getPrice();
+                                        if (pricee <= maxprice) {
+                                            bid = new Bidnc(price);
+                                            try
+                                            {
+                                                Thread.sleep(1250);
+                                            }
+                                            catch(InterruptedException ie)
+                                            {
+                                                logger.info(ie.getMessage());
+                                            }
+                                            try{
+                                                if(q)
+                                                    pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                                                else
+                                                    pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);
+                                            }
+                                            catch(Exception e)
+                                            {
+                                                try {
+                                                    bearer = accounts.get(!taskmap.get(domain).isAccount());
+                                                    if(q)
+                                                        pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                                                    else
+                                                        pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);                                                    taskmap.get(domain).setAccount(!taskmap.get(domain).isAccount());
+                                                    db.setAccount(!db.getAccount());
+                                                }
+                                                catch(Exception e1) {
+                                                    db.setResult("API Error Bid pb Fast");
+                                                    db.setFast_i(0);
+                                                    repo.save(db);
+                                                    return;
+                                                }
+                                            }
+                                            //String domain= repo.findByNamecheapid(ncid).getDomain();
+                                            if (pb.getStatus().equals("processed")) {
+                                                db.setMyLastBid(price);
+                                                db.setIsBidPlaced(true);
+                                                db.setCurrbid(String.valueOf(pb.getAmount()));
+                                                if (pb.getAmount() > maxprice)
+                                                    db.setBidAmount(String.valueOf(pb.getAmount()));
+                                                db.setResult("Bid Placed");
+                                                if (pb.getLeadingBid()) {
+                                                    telegram.sendAlert(-1001763199668l, 1004l, "Namecheap: Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + price);
+                                                    notifRepo.save(new Notification("Namecheap", time, "Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + price));
+                                                    logger.info(time + ": Stopped  Fast Bidding on domain: " + domain + " as we surpassed proxy at price: " + price);
+                                                    db.setFast_i(0);
+                                                    break;
+                                                }
+                                            }
+                                            else {
+
+                                                db.setIsBidPlaced(false);
+                                                db.setCurrbid(String.valueOf(pb.getAmount()));
+                                                db.setFast_i(0);
+                                                scheduleCO=false;
+                                                //db.setBidAmount();
+                                                db.setResult("Bid Not Placed");
+                                                time = timeft.format(d);
+                                                deleteTaskMap(domain);
+                                                notifRepo.save(new Notification("Namecheap", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + price));
+                                                logger.info(time + ": Bid not placed of domain: " + domain + " at price " + price);
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            String endTime = detail.getEndDate();
+                                            db.setFast_i(0);
+                                            db.setResult("Outbid");
+                                            endTime = endTime.substring(0, endTime.length() - 5);
+                                            d = new Date();
+
+                                            //String endTimeist = "";
+                                            String time_left = "";
+                                            try {
+                                                d = parser.parse(endTime);
+                                                //endTimeist = ft1.format(d);
+                                                time_left = relTime(d);
+
+                                            } catch (ParseException p) {
+                                                logger.info(p.getMessage());
+                                            }
+
+                                            Float currbid = detail.getPrice();
+                                            Integer est = detail.getEstibotValue();
+                                            sendOutbid("Outbid", time_left, domain, detail.getMinBid(), db.getBidAmount(), db.getEstibot(), ncid,db.getAccount());
+
+                                            Date now = new Date();
+                                            time = timeft.format(now);
+                                            notifRepo.save(new Notification("Namecheap", time, "Domain: " + domain + " with our max price " + maxprice + " OUTBID at price " + currbid));
+                                            logger.info(time + ": Namecheap: Domain: " + domain + " with our max price " + maxprice + " Outbid at price " + currbid);
+                                            scheduleCO=false;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            else{
+                                AuctionDetailNC detail1 = namecheapfeignB.getAuctionDetailbyId(bearer, ncid,domain);
                             String timeId2 = detail1.getEndDate().substring(0, detail.getEndDate().length() - 5);
                             Float price1 = detail1.getMinBid();
                             Float pricee1 = detail1.getPrice();
@@ -3652,9 +4794,19 @@ b=false;
 
                                 try {
                                     Date d1 = parser.parse(timeId2);
-                                    d1.setSeconds(d1.getSeconds() - 10);
+                                    Date now= new Date();
+                                    ScheduledFuture task;
+                                    if (d1.getTime() - now.getTime() < (buffer+10)*1000) {
+                                        d1.setSeconds(d1.getSeconds() - bufferQ);
+                                         task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId2,true), d);
+                                    }
+                                    else {
+                                        d1.setSeconds(d1.getSeconds() - buffer);
+                                         task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId2,false), d);
+                                    }
+                                    /*d1.setSeconds(d1.getSeconds() - buffer);
                                     ScheduledFuture task = taskScheduler.schedule(new PlaceBid(ncid, maxprice, domain, timeId2), d1);
-                                    Date now = new Date();
+                                    Date now = new Date();*/
                                     time = timeft.format(now);
                                     String bidist = ft1.format(d1);
                                     telegram.sendAlert(-1001763199668l, 1004l, "Namecheap: Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " time " + bidist);
@@ -3667,6 +4819,7 @@ b=false;
                                     //DBdetails dBdetails= repo.findByNamecheapid(ncid);
                                     //dBdetails.setResult("Bid Placed And Scheduled");
                                     //repo.save(dBdetails);
+
                                 } catch (ParseException p) {
                                     logger.info(p.getMessage());
                                 }
@@ -3700,7 +4853,20 @@ b=false;
                                 logger.info(time + ": Namecheap: Domain: " + domain + " with our max price " + maxprice + " Outbid at price " + currbid);
 
                             }
+                            scheduleCO=false;
+                            sendWatchlist("Our Bid Placed","05m",domain,price1,db.getBidAmount(),db.getEstibot(),ncid);
 
+                            }
+                        }
+                        repo.save(db);
+                        if(scheduleCO)
+                        {
+                            Date now = d;
+                            now.setSeconds(now.getSeconds() + 45);
+                            CheckOutbid checkOutbid = new CheckOutbid(price, maxprice, ncid, domain);
+                            ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now, 30000);
+                            checkOutbid.setScheduledFuture(scheduledFuture);
+                            updateTaskMap(domain, scheduledFuture, "co");
                         }
                     } else {
 
@@ -3749,13 +4915,13 @@ b=false;
             }
         }
     }
-   /* public class PreCheck1 implements Runnable
+    public class PreCheckB implements Runnable
     {
 
         String ncid,domain;
         float maxprice;
 
-        public PreCheck1(String ncid, String domain, Float maxprice)
+        public PreCheckB(String ncid, String domain, Float maxprice)
         {
             this.ncid = ncid;
             this.domain = domain;
@@ -3765,10 +4931,11 @@ b=false;
         @Override
         public void run()
         {
+            AuctionDetailNC detail=null;
             DBdetails db= repo.findByNamecheapid(ncid);
-            AuctionDetailNC detail =null;
+            String bearer=getAccount(db);
             try {
-                detail = namecheapfeignB.getAuctionDetailbyId(bearer1, ncid, domain);
+                detail = namecheapfeignB.getAuctionDetailbyId(bearer, ncid, domain);
             }
             catch(Exception e)
             {
@@ -3803,7 +4970,7 @@ b=false;
                 }
 
                 Integer est=detail.getEstibotValue();
-                sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid);
+                sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid,db.getAccount());
 
                 Date now= new Date();
                 String time= timeft.format(now);
@@ -3819,11 +4986,19 @@ b=false;
                 try
                 {
                     Date d= parser.parse(endTime);
-                    d.setSeconds(d.getSeconds()-10);
-                    ScheduledFuture task= taskScheduler.schedule(new PlaceBid1(ncid,maxprice,domain,endTime),d);
+                    Date now= new Date();
+                    ScheduledFuture task;
+                    if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                        d.setSeconds(d.getSeconds() - bufferQ);
+                        task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, endTime,true), d);
+                    }
+                    else {
+                        d.setSeconds(d.getSeconds() - buffer);
+                        task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, endTime,false), d);
+                    }
+
                     updateTaskMap(domain,task,"pb");
 
-                    Date now= new Date();
                     String time= timeft.format(now);
                     String bidist= ft1.format(d);
                     notifRepo.save(new Notification("Namecheap",time,"Prechecking, Bid SCHEDULED for " + domain + " at price " + maxprice + " at time " + bidist));
@@ -3838,22 +5013,32 @@ b=false;
             }
         }
     }
-    public class CheckOutbid1 implements Runnable
+    public class CheckOutbidB implements Runnable
     {
         float price,maxprice;
         String ncid;
         String domain;
+
+        boolean account;
         ScheduledFuture scheduledFuture;
 
         public void setScheduledFuture(ScheduledFuture scheduledFuture) {
             this.scheduledFuture = scheduledFuture;
         }
 
-        public CheckOutbid1(Float price, Float maxprice, String ncid, String domain) {
+        public CheckOutbidB(Float price, Float maxprice, String ncid, String domain, boolean account) {
             this.price = price;
             this.maxprice = maxprice;
             this.ncid = ncid;
             this.domain=domain;
+            this.account=account;
+        }
+        public CheckOutbidB(Float price, Float maxprice, String ncid, String domain) {
+            this.price = price;
+            this.maxprice = maxprice;
+            this.ncid = ncid;
+            this.domain=domain;
+            this.account=taskmap.get(domain).isAccount();
         }
 
         @Override
@@ -3861,10 +5046,11 @@ b=false;
         {
             SimpleDateFormat parser= parser();
             SimpleDateFormat ft1=ft1();
+            AuctionDetailNC detail=null;
+            String bearer= accounts.get(account);
             DBdetails db= repo.findByNamecheapid(ncid);
-            AuctionDetailNC detail =null;
-            try {
-                detail = namecheapfeignB.getAuctionDetailbyId(bearer1, ncid, domain);
+            try{
+                detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain);
             }
             catch(Exception e)
             {
@@ -3902,7 +5088,7 @@ b=false;
 
                         Float currbid = detail.getPrice();
                         Integer est=detail.getEstibotValue();
-                        sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid);
+                        sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid,db.getAccount());
 
                         Date now= new Date();
                         String time= timeft.format(now);
@@ -3917,13 +5103,22 @@ b=false;
                         try
                         {
                             Date d = parser.parse(endTime);
-                            d.setSeconds(d.getSeconds() - 10);
-                            ScheduledFuture task= taskScheduler.schedule(new PlaceBid1(ncid, maxprice, domain, endTime), d);
+                            Date now= new Date();
+                            ScheduledFuture task;
+                            if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                                d.setSeconds(d.getSeconds() - bufferQ);
+                                task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, endTime,true), d);
+                            }
+                            else {
+                                d.setSeconds(d.getSeconds() - buffer);
+                                task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, endTime,false), d);
+                            }
+
                             updateTaskMap(domain,task,"pb");
                             DBdetails dBdetails= repo.findByNamecheapid(ncid);
                             dBdetails.setResult("Bid Placed And Scheduled");
                             repo.save(dBdetails);
-                            Date now= new Date();
+
                             String time= timeft.format(now);
                             String bidist= ft1.format(d);
                             telegram.sendAlert(-1001763199668l,1004l, "Namecheap: Outbid, BID SCHEDULED for domain: "+domain+ " for max price: "+minbid+" at "+bidist);
@@ -3974,23 +5169,23 @@ b=false;
             }
         }
     }
-    public class PlaceBid1 implements Runnable{
+
+
+    public class PlaceBidB implements Runnable
+    {
 
 
 
         String ncid,domain, timeId;
         Float maxprice;
-
-
-
-
-
-        public PlaceBid1(String ncid, Float maxprice,String domain, String timeId)
+        boolean q;
+        public PlaceBidB(String ncid, Float maxprice,String domain, String timeId,boolean q)
         {
             this.ncid=ncid;
             this.maxprice=maxprice;
             this.domain=domain;
             this.timeId=timeId;
+            this.q=q;
             //this.service= new Service();
         }
         @Override
@@ -3999,19 +5194,58 @@ b=false;
             SimpleDateFormat ft1=ft1();
             DBdetails db= repo.findByNamecheapid(ncid);
             AuctionDetailNC detail=null;
-            try
-            {
-              detail= namecheapfeignB.getAuctionDetailbyId(bearer1,ncid,domain);
+            String bearer=getAccount(db);
+
+            try{
+                if(q)
+                    detail= namecheapfeignBQ.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
+                else
+                detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
             }
             catch(Exception e)
             {
-                db.setResult("API Error Fetch pb");
-                repo.save(db);
-                return;
+                try {
+                    bearer = accounts.get(!taskmap.get(domain).isAccount());
+                    if(q)
+                        detail= namecheapfeignBQ.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());
+                    else
+                        detail= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain.toLowerCase());                    taskmap.get(domain).setAccount(!taskmap.get(domain).isAccount());
+                    db.setAccount(!db.getAccount());
+                    repo.save(db);
+                }
+                catch(Exception e1) {
+                    db.setResult("API Error Fetch pb");
+                    repo.save(db);
+                    return;
+                }
             }
             String timeId1= detail.getEndDate().substring(0,detail.getEndDate().length()-5);
             Float price= detail.getMinBid();
             Float pricee= detail.getPrice();
+
+            if(!db.getAccountSwitched()&&price>Float.valueOf(db.getPreBidAmount()))
+            {
+                if(db.getBothAccount()==1)
+                {
+                    if (!db.getAccount())
+                    {
+                        taskmap.get(domain).setAccount(true);
+                        db.setAccount(true);
+                        bearer=accounts.get(true);
+                    }
+                }
+                else if(db.getBothAccount()==2)
+                {
+                    if (db.getAccount())
+                    {
+                        taskmap.get(domain).setAccount(false);
+                        db.setAccount(false);
+                        bearer=accounts.get(false);
+                    }
+                }
+                db.setAccountSwitched(true);
+                repo.save(db);
+            }
 
             if(!timeId.equals(timeId1))
             {
@@ -4019,9 +5253,16 @@ b=false;
 
                     try {
                         Date d = parser.parse(timeId1);
-                        d.setSeconds(d.getSeconds() - 10);
-                        ScheduledFuture task=taskScheduler.schedule(new PlaceBid1(ncid, maxprice, domain, timeId1), d);
                         Date now= new Date();
+                        ScheduledFuture task;
+                        if (d.getTime() - now.getTime() < (buffer+10)*1000) {
+                            d.setSeconds(d.getSeconds() - bufferQ);
+                            task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, timeId1,true), d);
+                        }
+                        else {
+                            d.setSeconds(d.getSeconds() - buffer);
+                            task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, timeId1,false), d);
+                        }
                         String time= timeft.format(now);
                         String bidist= ft1.format(d);
                         telegram.sendAlert(-1001763199668l,1004l, "Prechecking, Bid SCHEDULED for " + domain + " at price " + price + " at time " + bidist);
@@ -4059,7 +5300,7 @@ b=false;
 
                     Float currbid = detail.getPrice();
                     Integer est=detail.getEstibotValue();
-                    sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid);
+                    sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid,db.getAccount());
 
                     Date now= new Date();
                     String time= timeft.format(now);
@@ -4070,83 +5311,242 @@ b=false;
             }
             else {
 
-                if(pricee<=maxprice) {
-                    Bidnc bid=new Bidnc(price);
+              /*  if(pricee.equals(db.getMyLastBid()))
+                {
+
+                }
+                else
+                {*/
+                if (pricee <= maxprice) {
+                    Bidnc bid = new Bidnc(price);
                     ResponsePlaceBidNc pb =null;
-                    try
-                    {
-                     pb = namecheapfeignB.placeBidnc(bearer1, ncid, bid,domain);
+                    try{
+                        if(q)
+                            pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                        else
+                        pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);
                     }
                     catch(Exception e)
                     {
-                        db.setResult("API Error Bid pb");
-                        repo.save(db);
-                        return;
-                    }
-
-                    //String domain= repo.findByNamecheapid(ncid).getDomain();
-                    if (pb.getStatus().equals("processed")) {
-                        Date d=new Date();
-                        String time= timeft.format(d);
-                        telegram.sendAlert(-1001763199668l,1004l, "Namecheap: Scheduled Bid PLACED for " + domain + " at price " + price + " USD");
-                        notifRepo.save(new Notification("Namecheap",time,"Scheduled Bid PLACED for " + domain + " at price " + price + " USD"));
-                        logger.info(time+": Scheduled Bid Placed of domain: " + domain+ " at price " + price + " USD");
-                        logger.info(""+price);
-                        if(pb.getLeadingBid())
-                        {
-                            Date now= d;
-                            now.setSeconds(now.getSeconds()+45);
-                            CheckOutbid1 checkOutbid1= new CheckOutbid1(price,maxprice,ncid,domain);
-                            ScheduledFuture scheduledFuture= taskScheduler.scheduleAtFixedRate(checkOutbid1,now,30000);
-                            checkOutbid1.setScheduledFuture(scheduledFuture);
-                            updateTaskMap(domain,scheduledFuture,"co");
-                            db.setMyLastBid(price);
-                            db.setIsBidPlaced(true);
-                            db.setCurrbid(String.valueOf(pb.getAmount()));
-                            if(pb.getAmount()>maxprice)
-                                db.setBidAmount(String.valueOf(pb.getAmount()));
-                            db.setResult("Bid Placed");
+                        try {
+                            bearer = accounts.get(!taskmap.get(domain).isAccount());
+                            pb = namecheapfeignB.placeBidnc(bearer, ncid, bid, domain);
+                            taskmap.get(domain).setAccount(!taskmap.get(domain).isAccount());
+                            db.setAccount(!db.getAccount());
                             repo.save(db);
                         }
-                        else {
-                            AuctionDetailNC detail1= namecheapfeignB.getAuctionDetailbyId(bearer,ncid,domain);
-                            String timeId2= detail1.getEndDate().substring(0,detail.getEndDate().length()-5);
-                            Float price1= detail1.getMinBid();
-                            Float pricee1= detail1.getPrice();
+                        catch(Exception e1) {
+                            db.setResult("API Error Bid pb");
+                            repo.save(db);
+                            return;
+                        }
+                    }
+                    //String domain= repo.findByNamecheapid(ncid).getDomain();
+                    if (pb.getStatus().equals("processed"))
+                    {
+                        Date d = new Date();
+                        String time = timeft.format(d);
+                        telegram.sendAlert(-1001763199668l, 1004l, "Namecheap: Scheduled Bid PLACED for " + domain + " at price " + price + " USD");
+                        notifRepo.save(new Notification("Namecheap", time, "Scheduled Bid PLACED for " + domain + " at price " + price + " USD"));
+                        logger.info(time + ": Scheduled Bid Placed of domain: " + domain + " at price " + price + " USD");
+                        db.setMyLastBid(price);
+                        db.setIsBidPlaced(true);
+                        boolean scheduleCO=true;
+                        if (pb.getLeadingBid()) {
+                            Date now = d;
 
-                            if(pricee1<=maxprice) {
+                            //DBdetails db = repo.findByNamecheapid(ncid);
+
+                            db.setCurrbid(String.valueOf(pb.getAmount()));
+                            if (pb.getAmount() > maxprice)
+                                db.setBidAmount(String.valueOf(pb.getAmount()));
+                            db.setResult("Bid Placed");
+                            db.setFast_i(0);
+                        } else {
+                            if(db.getFastBid()&&(Float.valueOf(db.getFastBidAmount())<=price))
+                            {
+                                db.setFast_i(db.getFast_i()+1);
+                                if(db.getFast_i()>db.getFast_n())
+                                {
+                                    telegram.sendAlert(-1001763199668l,1004l,"Namecheap: Started Fast Bidding on " + domain);
+                                    notifRepo.save(new Notification("Namecheap",time,"Started Fast Bidding on " + domain));
+                                    logger.info(time+": Started Fast Bidding on domain: " + domain);
+                                    while(true)
+                                    {
+                                        try
+                                        {
+                                            Thread.sleep(1250);
+                                        }
+                                        catch(InterruptedException ie)
+                                        {
+                                            logger.info(ie.getMessage());
+                                        }
+
+                                        detail = namecheapfeignB.getAuctionDetailbyId(bearer, ncid,domain);
+                                        price= detail.getMinBid();
+                                        pricee= detail.getPrice();
+                                        if (pricee <= maxprice) {
+                                            if(!db.getAccountSwitched()&&price>Float.valueOf(db.getPreBidAmount()))
+                                            {
+                                                if(db.getBothAccount()==1)
+                                                {
+                                                    if (!db.getAccount())
+                                                    {
+                                                        taskmap.get(domain).setAccount(true);
+                                                        db.setAccount(true);
+                                                        bearer=accounts.get(true);
+                                                    }
+                                                }
+                                                else if(db.getBothAccount()==2)
+                                                {
+                                                    if (db.getAccount())
+                                                    {
+                                                        taskmap.get(domain).setAccount(false);
+                                                        db.setAccount(false);
+                                                        bearer=accounts.get(false);
+                                                    }
+                                                }
+                                                db.setAccountSwitched(true);
+                                            }
+                                            bid = new Bidnc(price);
+                                            try
+                                            {
+                                                Thread.sleep(1250);
+                                            }
+                                            catch(InterruptedException ie)
+                                            {
+                                                logger.info(ie.getMessage());
+                                            }
+                                            try{
+                                                if(q)
+                                                    pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                                                else
+                                                    pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);
+                                            }
+                                            catch(Exception e)
+                                            {
+                                                try {
+                                                    bearer = accounts.get(!taskmap.get(domain).isAccount());
+                                                    if(q)
+                                                        pb = namecheapfeignBQ.placeBidnc(bearer, ncid, bid,domain);
+                                                    else
+                                                        pb = namecheapfeignB.placeBidnc(bearer, ncid, bid,domain);                                                    taskmap.get(domain).setAccount(!taskmap.get(domain).isAccount());
+                                                    db.setAccount(!db.getAccount());
+                                                }
+                                                catch(Exception e1) {
+                                                    db.setResult("API Error Bid pb Fast");
+                                                    db.setFast_i(0);
+                                                    repo.save(db);
+                                                    return;
+                                                }
+                                            }
+                                            //String domain= repo.findByNamecheapid(ncid).getDomain();
+                                            if (pb.getStatus().equals("processed")) {
+                                                db.setMyLastBid(price);
+                                                db.setIsBidPlaced(true);
+                                                db.setCurrbid(String.valueOf(pb.getAmount()));
+                                                if (pb.getAmount() > maxprice)
+                                                    db.setBidAmount(String.valueOf(pb.getAmount()));
+                                                db.setResult("Bid Placed");
+                                                if (pb.getLeadingBid()) {
+                                                    telegram.sendAlert(-1001763199668l, 1004l, "Namecheap: Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + price);
+                                                    notifRepo.save(new Notification("Namecheap", time, "Stopped Fast Bidding on " + domain + " as we surpassed proxy at price: " + price));
+                                                    logger.info(time + ": Stopped  Fast Bidding on domain: " + domain + " as we surpassed proxy at price: " + price);
+                                                    db.setFast_i(0);
+                                                    break;
+                                                }
+                                            }
+                                            else {
+
+                                                db.setIsBidPlaced(false);
+                                                db.setCurrbid(String.valueOf(pb.getAmount()));
+                                                db.setFast_i(0);
+                                                scheduleCO=false;
+                                                //db.setBidAmount();
+                                                db.setResult("Bid Not Placed");
+                                                time = timeft.format(d);
+                                                deleteTaskMap(domain);
+                                                notifRepo.save(new Notification("Namecheap", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + price));
+                                                logger.info(time + ": Bid not placed of domain: " + domain + " at price " + price);
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            String endTime = detail.getEndDate();
+                                            db.setFast_i(0);
+                                            db.setResult("Outbid");
+                                            endTime = endTime.substring(0, endTime.length() - 5);
+                                            d = new Date();
+
+                                            //String endTimeist = "";
+                                            String time_left = "";
+                                            try {
+                                                d = parser.parse(endTime);
+                                                //endTimeist = ft1.format(d);
+                                                time_left = relTime(d);
+
+                                            } catch (ParseException p) {
+                                                logger.info(p.getMessage());
+                                            }
+
+                                            Float currbid = detail.getPrice();
+                                            Integer est = detail.getEstibotValue();
+                                            sendOutbid("Outbid", time_left, domain, detail.getMinBid(), db.getBidAmount(), db.getEstibot(), ncid,db.getAccount());
+
+                                            Date now = new Date();
+                                            time = timeft.format(now);
+                                            notifRepo.save(new Notification("Namecheap", time, "Domain: " + domain + " with our max price " + maxprice + " OUTBID at price " + currbid));
+                                            logger.info(time + ": Namecheap: Domain: " + domain + " with our max price " + maxprice + " Outbid at price " + currbid);
+                                            scheduleCO=false;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            else{
+                            AuctionDetailNC detail1 = namecheapfeignB.getAuctionDetailbyId(bearer, ncid, domain);
+                            String timeId2 = detail1.getEndDate().substring(0, detail.getEndDate().length() - 5);
+                            Float price1 = detail1.getMinBid();
+                            Float pricee1 = detail1.getPrice();
+
+                            if (pricee1 <= maxprice) {
 
                                 try {
                                     Date d1 = parser.parse(timeId2);
-                                    d1.setSeconds(d1.getSeconds() - 10);
-                                    ScheduledFuture task=taskScheduler.schedule(new PlaceBid1(ncid, maxprice, domain, timeId2), d1);
-                                    Date now= new Date();
-                                    time= timeft.format(now);
-                                    String bidist= ft1.format(d1);
-                                    telegram.sendAlert(-1001763199668l,1004l,"Namecheap: Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " time " + bidist);
-                                    notifRepo.save(new Notification("Namecheap",time,"Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " at time " + bidist));
-                                    logger.info(time+": Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " time " + bidist);
-                                    updateTaskMap(domain,task,"pb");
+                                    Date now = new Date();
+                                    ScheduledFuture task;
+                                    if (d.getTime() - now.getTime() < (buffer + 10) * 1000) {
+                                        d.setSeconds(d.getSeconds() - bufferQ);
+                                        task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, timeId1, true), d);
+                                    } else {
+                                        d.setSeconds(d.getSeconds() - buffer);
+                                        task = taskScheduler.schedule(new PlaceBidB(ncid, maxprice, domain, timeId1, false), d);
+                                    }
+                                    time = timeft.format(now);
+                                    String bidist = ft1.format(d1);
+                                    telegram.sendAlert(-1001763199668l, 1004l, "Namecheap: Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " time " + bidist);
+                                    notifRepo.save(new Notification("Namecheap", time, "Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " at time " + bidist));
+                                    logger.info(time + ": Outbid by Proxy, Bid SCHEDULED for " + domain + " at price " + detail1.getPrice() + " time " + bidist);
+                                    updateTaskMap(domain, task, "pb");
+                                    // DBdetails db = repo.findByNamecheapid(detail.getId());
                                     db.setResult("Bid Placed And Scheduled");
-                                    repo.save(db);
                                     //DBdetails dBdetails= repo.findByNamecheapid(ncid);
                                     //dBdetails.setResult("Bid Placed And Scheduled");
                                     //repo.save(dBdetails);
                                 } catch (ParseException p) {
                                     logger.info(p.getMessage());
                                 }
-                            }
-                            else
-                            {
+                            } else {
                                 //notify
-                                String endTime= detail1.getEndDate();
+                                String endTime = detail1.getEndDate();
+
                                 db.setResult("Outbid");
-                                repo.save(db);
                                 endTime = endTime.substring(0, endTime.length() - 5);
                                 d = new Date();
 
                                 //String endTimeist = "";
-                                String time_left="";
+                                String time_left = "";
                                 try {
                                     d = parser.parse(endTime);
                                     //endTimeist = ft1.format(d);
@@ -4157,44 +5557,52 @@ b=false;
                                 }
 
                                 Float currbid = detail1.getPrice();
-                                Integer est=detail1.getEstibotValue();
-                                sendOutbid("Outbid",time_left,domain,detail1.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid);
+                                Integer est = detail1.getEstibotValue();
+                                sendOutbid("Outbid", time_left, domain, detail1.getMinBid(), db.getBidAmount(), db.getEstibot(), ncid, db.getAccount());
 
-                                Date now= new Date();
-                                time= timeft.format(now);
-                                notifRepo.save(new Notification("Namecheap",time,"Domain: "+domain+" with our max price "+maxprice+" OUTBID at price " + currbid ));
-                                logger.info(time+": Namecheap: Domain: "+domain+" with our max price "+maxprice+" Outbid at price " + currbid );
+                                Date now = new Date();
+                                time = timeft.format(now);
+                                notifRepo.save(new Notification("Namecheap", time, "Domain: " + domain + " with our max price " + maxprice + " OUTBID at price " + currbid));
+                                logger.info(time + ": Namecheap: Domain: " + domain + " with our max price " + maxprice + " Outbid at price " + currbid);
 
                             }
-
+                            scheduleCO=false;
                         }
-                    }
-                    else {
+                        }
+                        if(scheduleCO)
+                        {
+                            Date now=new Date();
+                            now.setSeconds(now.getSeconds() + 45);
+                            CheckOutbidB checkOutbid = new CheckOutbidB(price, maxprice, ncid, domain);
+                            ScheduledFuture scheduledFuture = taskScheduler.scheduleAtFixedRate(checkOutbid, now, 30000);
+                            checkOutbid.setScheduledFuture(scheduledFuture);
+                            updateTaskMap(domain, scheduledFuture, "co");
+                        }
+                        repo.save(db);
+                    } else {
+
                         db.setIsBidPlaced(false);
                         db.setCurrbid(String.valueOf(pb.getAmount()));
                         //db.setBidAmount();
                         db.setResult("Bid Not Placed");
-                        Date d=new Date();
-                        String time= timeft.format(d);
+                        Date d = new Date();
+                        String time = timeft.format(d);
                         deleteTaskMap(domain);
-                        notifRepo.save(new Notification("Namecheap",time,"Scheduled Bid NOT PLACED for " + domain + " at price " + price ));
-                        logger.info(time+": Bid not placed of domain: " + domain + " at price " + price);
+                        notifRepo.save(new Notification("Namecheap", time, "Scheduled Bid NOT PLACED for " + domain + " at price " + price));
+                        logger.info(time + ": Bid not placed of domain: " + domain + " at price " + price);
 
                         repo.save(db);
                     }
-                }
-                else
-                {
+                } else {
                     //notify
-                    String endTime= detail.getEndDate();
-
+                    String endTime = detail.getEndDate();
                     db.setResult("Outbid");
                     repo.save(db);
                     endTime = endTime.substring(0, endTime.length() - 5);
                     Date d = new Date();
 
                     //String endTimeist = "";
-                    String time_left="";
+                    String time_left = "";
                     try {
                         d = parser.parse(endTime);
                         //endTimeist = ft1.format(d);
@@ -4205,17 +5613,18 @@ b=false;
                     }
 
                     Float currbid = detail.getPrice();
-                    Integer est=detail.getEstibotValue();
-                    sendOutbid("Outbid",time_left,domain,detail.getMinBid(),db.getBidAmount(),db.getEstibot(),ncid);
+                    Integer est = detail.getEstibotValue();
+                    sendOutbid("Outbid", time_left, domain, detail.getMinBid(), db.getBidAmount(), db.getEstibot(), ncid,db.getAccount());
 
-                    Date now= new Date();
-                    String time= timeft.format(now);
-                    notifRepo.save(new Notification("Namecheap",time,"Domain: "+domain+" with our max price "+maxprice+" OUTBID at price " + price ));
-                    logger.info(time+": Namecheap: Domain: "+domain+" with our max price "+maxprice+" Outbid at price " + price );
+                    Date now = new Date();
+                    String time = timeft.format(now);
+                    notifRepo.save(new Notification("Namecheap", time, "Domain: " + domain + " with our max price " + maxprice + " OUTBID at price " + price));
+                    logger.info(time + ": Namecheap: Domain: " + domain + " with our max price " + maxprice + " Outbid at price " + price);
 
                 }
+
             }
         }
     }
-*/
+
 }

@@ -15,6 +15,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import javax.annotation.PostConstruct;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
@@ -46,6 +47,7 @@ public class AsyncCalss {
     SimpleDateFormat timeft ;
     TimeZone ist ;
 
+    String a="yoyo";
 
     public AsyncCalss()
     {

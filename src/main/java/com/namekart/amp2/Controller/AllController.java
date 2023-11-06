@@ -1,28 +1,36 @@
 package com.namekart.amp2.Controller;
 
+import com.azure.spring.aad.AADOAuth2AuthenticatedPrincipal;
 import com.namekart.amp2.Entity.DBdetails;
 import com.namekart.amp2.Entity.ResponseLive;
 import com.namekart.amp2.EstibotEntity.Estibot_Data;
 import com.namekart.amp2.EstibotEntity.Estibot_Response;
 import com.namekart.amp2.Feign.Estibot;
+import com.namekart.amp2.GoDaddyEntities.PurchaseResp;
 import com.namekart.amp2.Repository.LiveFilterSettingsRepo;
 import com.namekart.amp2.Repository.MyRepo;
+import com.namekart.amp2.Repository.UserRepository;
 import com.namekart.amp2.SettingsEntity.LiveFilterSettings;
 import com.namekart.amp2.SettingsEntity.LiveFiltersWrapper;
 import com.namekart.amp2.Status;
+import com.namekart.amp2.TelegramEntities.Tsession;
+import com.namekart.amp2.UserEntities.User;
+import com.nimbusds.jose.shaded.json.JSONArray;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.persistence.NonUniqueResultException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 @RestController
@@ -38,12 +46,14 @@ public class AllController {
     Controller dynadotController;*/
 
     Logger logger= Logger.getLogger("Common");
-  /*  @Autowired
-    GoDaddyController goDaddyController;
 
+    @Lazy
+  @Autowired
+    GoDaddyController goDaddyController;
+/*
     @Autowired
     DropCatchController dropCatchController;*/
-
+  Random random= new Random();
     @Autowired
     MyRepo repo;
 
@@ -57,10 +67,118 @@ public class AllController {
     String estKey="D74OFQ3pN0pszbfpGK8GjV2vM";
     ConcurrentMap<String, Status> taskmap;
 
+    @Autowired
+    UserRepository userRepository;
+
+    @Autowired
+    ThreadPoolTaskScheduler taskScheduler;
+    SimpleDateFormat ft;
+    SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+
+    @Lazy
+    @Autowired
+    BotController botController;
     public AllController() {
         taskmap=new ConcurrentHashMap<>();
+        ft = new SimpleDateFormat("dd/MM/yyyy hh:mm");
+        ft.setTimeZone(TimeZone.getTimeZone("IST"));
     }
 
+
+
+    @GetMapping("/syncuser")
+    User syncUser()
+    {
+        AADOAuth2AuthenticatedPrincipal ad= getToken();
+        Optional<User> op= Optional.ofNullable(userRepository.findByEmail(ad.getClaim("unique_name")+""));
+        User user=null;
+        if(op.isPresent())
+        {
+            user=op.get();
+            user.setFirstName(ad.getClaim("given_name")+"");user.setLastName(ad.getClaim("family_name")+"");
+            JSONArray array= (JSONArray) ad.getClaim("roles");
+            user.getRoles().clear();
+            for (int i=0;i<array.size();i++) {
+
+                user.getRoles().add(array.get(i)+"");
+                if(array.get(i).toString().startsWith("Watch"))
+                {user.getRoles().add("Watch_GD");user.getRoles().add("Watch_DD");user.getRoles().add("Watch_DC");user.getRoles().add("Watch_NC");user.getRoles().add("Watch_NS");}
+                if(array.get(i).toString().startsWith("Live_Watch"))
+                {user.getRoles().add("Live_Watch_GD");user.getRoles().add("Live_Watch_DD");user.getRoles().add("Live_Watch_DC");user.getRoles().add("Live_Watch_NC");user.getRoles().add("Live_Watch_NS");}/*if(array.get(i).toString().startsWith("Bid"))
+                    user.getRoles().add("Bid");
+                else if(array.get(i).toString().startsWith("Watch"))
+                    user.getRoles().add("Watch");
+                else if(array.get(i).toString().startsWith("Live_Watch"))
+                    user.getRoles().add("Live_Watch");
+                else if(array.get(i).toString().startsWith("Live_Bid"))
+                    user.getRoles().add("Live_Bid");
+                else if(array.get(i).toString().startsWith("Report"))
+                    user.getRoles().add("Report");*/
+            }
+            if(user.getRoles().contains("Telegram"))
+            {
+                ConcurrentMap<Long,Tsession> users1=botController.getUsers1(),users= botController.getUsers();
+                if(!users1.containsKey(user.getTgUserId()))
+                {
+                    users1.put(user.getTgUserId(),new Tsession(user.getRoles()));
+                    users.remove(user.getTgUserId());
+                }
+                else
+                {
+                    users1.get(user.getTgUserId()).setRoles(user.getRoles());
+                }
+            }
+        }
+        else
+        {
+
+            user=new User(random.nextInt(999,10000),ad.getClaim("given_name")+"",ad.getClaim("family_name")+"",ad.getClaim("unique_name")+"");
+            JSONArray array= (JSONArray) ad.getClaim("roles");
+            for (int i=0;i<array.size();i++) {
+                user.getRoles().add(array.get(i)+"");
+                if(array.get(i).toString().startsWith("Watch"))
+                {user.getRoles().add("Watch_GD");user.getRoles().add("Watch_DD");user.getRoles().add("Watch_DC");user.getRoles().add("Watch_NC");user.getRoles().add("Watch_NS");}
+                if(array.get(i).toString().startsWith("Live_Watch"))
+                {user.getRoles().add("Live_Watch_GD");user.getRoles().add("Live_Watch_DD");user.getRoles().add("Live_Watch_DC");user.getRoles().add("Live_Watch_NC");user.getRoles().add("Live_Watch_NS");}
+            }
+        }
+        userRepository.save(user);
+        return user;
+    }
+
+    @GetMapping("/users")
+    List<User> getUsers()
+    {
+       return userRepository.findAll();
+    }
+
+    @GetMapping("/deleteuser")
+    List<User> deleteUser(@RequestParam Integer id)
+    {
+        userRepository.deleteById(id);
+        return userRepository.findAll();
+    }
+
+    @GetMapping("/getuser")
+    User getUser()
+    {
+       return userRepository.findByEmail(getToken().getClaim("unique_name")+"");
+    }
+
+    AADOAuth2AuthenticatedPrincipal getToken()
+    {
+        return (AADOAuth2AuthenticatedPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+    String getUserName()
+    {
+        return (getToken().getClaim("unique_name")+"");
+    }
+
+    @GetMapping("/getotp")
+    int getOtp()
+    {
+        return getUser().getOtp();
+    }
 
     @GetMapping("/getscheduledbids")
     List<DBdetails> getScheduledBids()
@@ -75,7 +193,7 @@ public class AllController {
         logger.info("1");
         */
 
-        List<DBdetails> list= repo.findByResultOrResultOrResultOrResultOrderByEndTimeist("Bid Scheduled", "Bid Placed","Bid Placed And Scheduled","Outbid");
+        List<DBdetails> list= repo.findByScheduledTrueOrderByEndTimeistAsc();//repo.findByResultOrResultOrResultOrResultOrderByEndTimeist("Bid Scheduled", "Bid Placed","Bid Placed And Scheduled","Outbid");
         return list;
     }
 
@@ -174,6 +292,29 @@ public class AllController {
         }
         return list;
     }
+    Estibot_Data getEstibotsSyncsingle(String s)
+    {
+        Estibot_Response estibot_response =null;
+        try {
+            estibot_response = estibot.getEstibot(estKey, "appraise", "cache", s);
+        }
+        catch(Exception e)
+        {
+            logger.info(e.getMessage());
+            String[] sl=s.split(">>");
+            Estibot_Data data= new Estibot_Data(s,-1);
+           return data;
+        }
+        Estibot_Data data = estibot_response.getResults().getData().get(0);
+
+        List<String> notFound = estibot_response.getNot_found();
+        if(notFound!=null&&(!notFound.isEmpty())) {
+            Estibot_Response estibot_response1 = estibot.getEstibot(estKey, "appraise", "live", s);
+            data=estibot_response1.getResults().getData().get(0);
+        }
+        return data;
+    }
+
     List<Estibot_Data> getEstibotsSync1(List<String> domains)
     {
         if(domains.isEmpty()||domains.size()==0||domains==null)
@@ -257,8 +398,9 @@ public class AllController {
             for(int i=0;i< list.size();i++)
             {
                 Estibot_Data data= list.get(i);
-                arr[map.get(data.getDomain())]=data;
-                map.remove(data.getDomain());
+                String domain=data.getDomain().trim().toLowerCase();
+                arr[map.get(domain)]=data;
+                map.remove(domain);
             }
             for (Map.Entry<String,Integer> ml : map.entrySet())
             {
@@ -328,6 +470,7 @@ public class AllController {
 
         },threadPoolExecutor);
     }
+
 
     CompletableFuture<List<Estibot_Data>> getEstibotList1(List<List<String>> domains)
     {
@@ -460,7 +603,10 @@ public class AllController {
         if(notFound!=null&&(!notFound.isEmpty()))
             estibot_response = estibot.getEstibot(estKey, "appraise", "live", domain);
 
+        if(estibot_response==null||estibot_response.getResults().getData()==null)
+            return new Estibot_Data(domain,-1);
         return estibot_response.getResults().getData().get(0);
+
     }
 
     CompletableFuture<Estibot_Data> getEstibotDomain(String domain)
@@ -554,6 +700,19 @@ public class AllController {
         }
     }
 
+    @GetMapping("/gettargetshighest")
+    List<DBdetails> getTargetshighest()
+    {
+        DBdetails dd= repo.findTopByPlatformAndScheduledTrueOrderByBidAmountDesc("Dynadot");
+        DBdetails dc= repo.findTopByPlatformAndScheduledTrueOrderByBidAmountDesc("Dropcatch");
+        DBdetails nc= repo.findTopByPlatformAndScheduledTrueOrderByBidAmountDesc("Namecheap");
+        DBdetails gd= repo.findTopByPlatformAndScheduledTrueOrderByBidAmountDesc("GoDaddy");
+        DBdetails ns= repo.findTopByPlatformAndScheduledTrueOrderByBidAmountDesc("Namesilo");
+
+        List<DBdetails> list=new ArrayList<>();
+        list.add(dd);list.add(dc);list.add(nc);list.add(ns);list.add(gd);
+        return list;
+    }
     @GetMapping("/getallasync")
     void test()
     {
@@ -569,6 +728,88 @@ public class AllController {
             }
         });
         logger.info("2");
+    }
+
+    @GetMapping("/registercron")
+    void registerDomain(@RequestParam String domain,@RequestParam String date){
+        Date d=null;
+        try {
+            d = ft.parse(date+" 23:30");
+        }
+        catch(ParseException p)
+        {
+           logger.info(p.getMessage());
+        }
+        String d1= parser.format(d)+"Z";
+        RegisterDomain registerDomain=new RegisterDomain(domain,d1);
+        ScheduledFuture scheduledFuture=taskScheduler.scheduleAtFixedRate(registerDomain,d,1000);
+        d.setHours(d.getHours()+1);
+        ScheduledFuture scheduledFuture1= taskScheduler.schedule(new StopRegisterDomain(scheduledFuture),d);
+        registerDomain.setScheduledFuture(scheduledFuture);registerDomain.setScheduledFuture1(scheduledFuture1);
+    }
+
+    class RegisterDomain implements Runnable
+    {
+        String domain;String d;
+
+        ScheduledFuture scheduledFuture;ScheduledFuture scheduledFuture1;
+
+        public ScheduledFuture getScheduledFuture() {
+            return scheduledFuture;
+        }
+
+        public void setScheduledFuture(ScheduledFuture scheduledFuture) {
+            this.scheduledFuture = scheduledFuture;
+        }
+        public ScheduledFuture getScheduledFuture1() {
+            return scheduledFuture1;
+        }
+
+        public void setScheduledFuture1(ScheduledFuture scheduledFuture1) {
+            this.scheduledFuture1 = scheduledFuture1;
+        }
+
+        public RegisterDomain(String domain,String d) {
+            this.domain = domain;
+            this.d=d;
+        }
+
+        public void run()
+        {
+            try
+            {
+                PurchaseResp resp= goDaddyController.registerDomain(domain,d);
+                scheduledFuture.cancel(true);scheduledFuture1.cancel(true);
+                logger.info("Purchased domain "+domain);
+            }
+            catch(Exception e)
+            {
+                logger.info(e.getMessage());
+            }
+        }
+    }
+
+    class StopRegisterDomain implements Runnable
+    {
+        ScheduledFuture scheduledFuture;
+
+        public ScheduledFuture getScheduledFuture() {
+            return scheduledFuture;
+        }
+
+        public void setScheduledFuture(ScheduledFuture scheduledFuture) {
+            this.scheduledFuture = scheduledFuture;
+        }
+
+        public StopRegisterDomain(ScheduledFuture scheduledFuture) {
+            this.scheduledFuture = scheduledFuture;
+        }
+
+        public void run()
+        {
+            scheduledFuture.cancel(true);
+            logger.info("Not able to purchase");
+        }
     }
 
 }
