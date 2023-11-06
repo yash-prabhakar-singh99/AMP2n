@@ -1,0 +1,382 @@
+<wsdl:definitions xmlns:tm="http://microsoft.com/wsdl/mime/textMatching/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:tns="GdAuctionsMemberWS" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:s="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" targetNamespace="GdAuctionsMemberWS">
+    <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">GoDaddy Auctions - Members WS (Version 2.0)</wsdl:documentation>
+    <wsdl:types>
+        <s:schema elementFormDefault="qualified" targetNamespace="GdAuctionsMemberWS">
+            <s:element name="GetMyBiddingSummary">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetMyBiddingSummaryResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetMyBiddingSummaryResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetMyDidNotWinSummary">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetMyDidNotWinSummaryResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetMyDidNotWinSummaryResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetMyWatchingSummary">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetMyWatchingSummaryResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetMyWatchingSummaryResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="SetMyWatches">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="watchListXml" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="SetMyWatchesResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="SetMyWatchesResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetMyBackorderSummary">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetMyBackorderSummaryResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetMyBackorderSummaryResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetMyWonSummary">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetMyWonSummaryResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetMyWonSummaryResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="ListDomainName">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="accountName" type="s:string"/>
+                        <s:element minOccurs="0" maxOccurs="1" name="auctionXml" type="s:string"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptUTOS" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptAMA" type="s:boolean"/>
+                        <s:element minOccurs="1" maxOccurs="1" name="acceptDNP" type="s:boolean"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="ListDomainNameResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="ListDomainNameResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="CancelListing">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="cancelXml" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="CancelListingResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="CancelListingResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+            <s:element name="GetServiceStatus">
+                <s:complexType/>
+            </s:element>
+            <s:element name="GetServiceStatusResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="GetServiceStatusResult" type="s:string"/>
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+        </s:schema>
+    </wsdl:types>
+    <wsdl:message name="GetMyBiddingSummarySoapIn">
+        <wsdl:part name="parameters" element="tns:GetMyBiddingSummary"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyBiddingSummarySoapOut">
+        <wsdl:part name="parameters" element="tns:GetMyBiddingSummaryResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyDidNotWinSummarySoapIn">
+        <wsdl:part name="parameters" element="tns:GetMyDidNotWinSummary"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyDidNotWinSummarySoapOut">
+        <wsdl:part name="parameters" element="tns:GetMyDidNotWinSummaryResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyWatchingSummarySoapIn">
+        <wsdl:part name="parameters" element="tns:GetMyWatchingSummary"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyWatchingSummarySoapOut">
+        <wsdl:part name="parameters" element="tns:GetMyWatchingSummaryResponse"/>
+    </wsdl:message>
+    <wsdl:message name="SetMyWatchesSoapIn">
+        <wsdl:part name="parameters" element="tns:SetMyWatches"/>
+    </wsdl:message>
+    <wsdl:message name="SetMyWatchesSoapOut">
+        <wsdl:part name="parameters" element="tns:SetMyWatchesResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyBackorderSummarySoapIn">
+        <wsdl:part name="parameters" element="tns:GetMyBackorderSummary"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyBackorderSummarySoapOut">
+        <wsdl:part name="parameters" element="tns:GetMyBackorderSummaryResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyWonSummarySoapIn">
+        <wsdl:part name="parameters" element="tns:GetMyWonSummary"/>
+    </wsdl:message>
+    <wsdl:message name="GetMyWonSummarySoapOut">
+        <wsdl:part name="parameters" element="tns:GetMyWonSummaryResponse"/>
+    </wsdl:message>
+    <wsdl:message name="ListDomainNameSoapIn">
+        <wsdl:part name="parameters" element="tns:ListDomainName"/>
+    </wsdl:message>
+    <wsdl:message name="ListDomainNameSoapOut">
+        <wsdl:part name="parameters" element="tns:ListDomainNameResponse"/>
+    </wsdl:message>
+    <wsdl:message name="CancelListingSoapIn">
+        <wsdl:part name="parameters" element="tns:CancelListing"/>
+    </wsdl:message>
+    <wsdl:message name="CancelListingSoapOut">
+        <wsdl:part name="parameters" element="tns:CancelListingResponse"/>
+    </wsdl:message>
+    <wsdl:message name="GetServiceStatusSoapIn">
+        <wsdl:part name="parameters" element="tns:GetServiceStatus"/>
+    </wsdl:message>
+    <wsdl:message name="GetServiceStatusSoapOut">
+        <wsdl:part name="parameters" element="tns:GetServiceStatusResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="GdAuctionsMemberWS_v2Soap">
+        <wsdl:operation name="GetMyBiddingSummary">
+            <wsdl:input message="tns:GetMyBiddingSummarySoapIn"/>
+            <wsdl:output message="tns:GetMyBiddingSummarySoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyDidNotWinSummary">
+            <wsdl:input message="tns:GetMyDidNotWinSummarySoapIn"/>
+            <wsdl:output message="tns:GetMyDidNotWinSummarySoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyWatchingSummary">
+            <wsdl:input message="tns:GetMyWatchingSummarySoapIn"/>
+            <wsdl:output message="tns:GetMyWatchingSummarySoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="SetMyWatches">
+            <wsdl:input message="tns:SetMyWatchesSoapIn"/>
+            <wsdl:output message="tns:SetMyWatchesSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyBackorderSummary">
+            <wsdl:input message="tns:GetMyBackorderSummarySoapIn"/>
+            <wsdl:output message="tns:GetMyBackorderSummarySoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyWonSummary">
+            <wsdl:input message="tns:GetMyWonSummarySoapIn"/>
+            <wsdl:output message="tns:GetMyWonSummarySoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="ListDomainName">
+            <wsdl:input message="tns:ListDomainNameSoapIn"/>
+            <wsdl:output message="tns:ListDomainNameSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="CancelListing">
+            <wsdl:input message="tns:CancelListingSoapIn"/>
+            <wsdl:output message="tns:CancelListingSoapOut"/>
+        </wsdl:operation>
+        <wsdl:operation name="GetServiceStatus">
+            <wsdl:input message="tns:GetServiceStatusSoapIn"/>
+            <wsdl:output message="tns:GetServiceStatusSoapOut"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="GdAuctionsMemberWS_v2Soap" type="tns:GdAuctionsMemberWS_v2Soap">
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="GetMyBiddingSummary">
+            <soap:operation soapAction="GdAuctionsMemberWS/GetMyBiddingSummary" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyDidNotWinSummary">
+            <soap:operation soapAction="GdAuctionsMemberWS/GetMyDidNotWinSummary" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyWatchingSummary">
+            <soap:operation soapAction="GdAuctionsMemberWS/GetMyWatchingSummary" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="SetMyWatches">
+            <soap:operation soapAction="GdAuctionsMemberWS/SetMyWatches" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyBackorderSummary">
+            <soap:operation soapAction="GdAuctionsMemberWS/GetMyBackorderSummary" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyWonSummary">
+            <soap:operation soapAction="GdAuctionsMemberWS/GetMyWonSummary" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="ListDomainName">
+            <soap:operation soapAction="GdAuctionsMemberWS/ListDomainName" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="CancelListing">
+            <soap:operation soapAction="GdAuctionsMemberWS/CancelListing" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetServiceStatus">
+            <soap:operation soapAction="GdAuctionsMemberWS/GetServiceStatus" style="document"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:binding name="GdAuctionsMemberWS_v2Soap12" type="tns:GdAuctionsMemberWS_v2Soap">
+        <soap12:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="GetMyBiddingSummary">
+            <soap12:operation soapAction="GdAuctionsMemberWS/GetMyBiddingSummary" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyDidNotWinSummary">
+            <soap12:operation soapAction="GdAuctionsMemberWS/GetMyDidNotWinSummary" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyWatchingSummary">
+            <soap12:operation soapAction="GdAuctionsMemberWS/GetMyWatchingSummary" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="SetMyWatches">
+            <soap12:operation soapAction="GdAuctionsMemberWS/SetMyWatches" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyBackorderSummary">
+            <soap12:operation soapAction="GdAuctionsMemberWS/GetMyBackorderSummary" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetMyWonSummary">
+            <soap12:operation soapAction="GdAuctionsMemberWS/GetMyWonSummary" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="ListDomainName">
+            <soap12:operation soapAction="GdAuctionsMemberWS/ListDomainName" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="CancelListing">
+            <soap12:operation soapAction="GdAuctionsMemberWS/CancelListing" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="GetServiceStatus">
+            <soap12:operation soapAction="GdAuctionsMemberWS/GetServiceStatus" style="document"/>
+            <wsdl:input>
+                <soap12:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap12:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="GdAuctionsMemberWS_v2">
+        <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">GoDaddy Auctions - Members WS (Version 2.0)</wsdl:documentation>
+        <wsdl:port name="GdAuctionsMemberWS_v2Soap" binding="tns:GdAuctionsMemberWS_v2Soap">
+            <soap:address location="https://auctions.godaddy.com/gdAuctionsWSAPI/gdAuctionsMemberWS_v2.asmx"/>
+        </wsdl:port>
+        <wsdl:port name="GdAuctionsMemberWS_v2Soap12" binding="tns:GdAuctionsMemberWS_v2Soap12">
+            <soap12:address location="https://auctions.godaddy.com/gdAuctionsWSAPI/gdAuctionsMemberWS_v2.asmx"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
